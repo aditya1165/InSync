@@ -71,8 +71,8 @@ export function TaskAnalysisDemo() {
     <section className="catchup-controls task-demo" aria-labelledby="task-demo-title">
       <div className="controls-heading">
         <div>
-          <h2 id="task-demo-title">Task-aware sample demo</h2>
-          <p>Scripted analysis using sample Slack and GitHub evidence.</p>
+          <h2 id="task-demo-title">Try the two sample interactions</h2>
+          <p>Choose a task to see how a PR affects it and which team decisions relate to it. All results use scripted samples.</p>
         </div>
       </div>
       <div className="task-demo-actions">
@@ -95,33 +95,43 @@ export function TaskAnalysisDemo() {
         </>
       )}
 
-      {links && (
-        <div className="task-demo-actions">
-          <span>Relevant change · Open PR #18</span>
-          <button type="button" className="filter-button" disabled={busy} onClick={() => runSample('impact')}>Explain PR impact</button>
-        </div>
-      )}
       {busy && <p role="status">Preparing sample analysis…</p>}
       {error && <p className="error-message" role="alert">Could not load the sample analysis. Check that the local API is running and try again.</p>}
 
-      {impact && impactResult?.status === 'suggested' && (
-        <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => impactResult.suggestion.evidenceIds.includes(item.id))}>
-          <p>{impactResult.suggestion.summary}</p>
-          <p><strong>Next action.</strong> {impactResult.suggestion.nextAction}</p>
-        </ReviewCard>
-      )}
-      {impact && impactResult?.status !== 'suggested' && <p role="status">Impact uncertain. Inspect the sample PR before acting.</p>}
+      {task && (
+        <>
+          <section className="task-demo-interaction" aria-labelledby="task-demo-impact">
+            <h3 id="task-demo-impact">1. Does this PR affect my task?</h3>
+            <div className="task-demo-actions">
+              <span>Relevant change · Open PR #18</span>
+              <button type="button" className="filter-button" disabled={busy} onClick={() => runSample('impact')}>Explain PR impact</button>
+            </div>
+          {impact && impactResult?.status === 'suggested' && (
+            <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => impactResult.suggestion.evidenceIds.includes(item.id))}>
+              <p>{impactResult.suggestion.summary}</p>
+              <p><strong>Next action.</strong> {impactResult.suggestion.nextAction}</p>
+            </ReviewCard>
+          )}
+          {impact && impactResult?.status !== 'suggested' && <p role="status">Impact uncertain. Inspect the sample PR before acting.</p>}
 
-      {links?.analyses.map(({ decisionStatus, result }) => {
-        if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
-        const title = decisionStatus === 'confirmed' ? 'Slack decision link' : 'Possible Slack discussion link'
-        return (
-          <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
-            <p>Slack decision status · {decisionStatus}</p>
-            <p>{result.suggestion.summary}</p>
-          </ReviewCard>
-        )
-      })}
+          </section>
+
+          <section className="task-demo-interaction" aria-labelledby="task-demo-decisions">
+            <h3 id="task-demo-decisions">2. Which team decisions relate to this PR?</h3>
+            {!links && <p>Run task catch-up to see suggested Slack links.</p>}
+          {links?.analyses.map(({ decisionStatus, result }) => {
+            if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
+            const title = decisionStatus === 'confirmed' ? 'Slack decision link' : 'Possible Slack discussion link'
+            return (
+              <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
+                <p>Slack decision status · {decisionStatus}</p>
+                <p>{result.suggestion.summary}</p>
+              </ReviewCard>
+            )
+          })}
+          </section>
+        </>
+      )}
     </section>
   )
 }

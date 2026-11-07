@@ -389,59 +389,62 @@ export default function App() {
             <p>Review Slack and GitHub activity together, see what may need your attention, and inspect the evidence behind each highlight.</p>
           </section>
 
-          <section className="catchup-controls" aria-labelledby="range-heading">
-            <div className="controls-heading"><div><h2 id="range-heading">Choose your time range</h2><p>Your catch-up begins when you click the button below.</p></div><Clock3 size={21} /></div>
-            <div className="filter-row" role="group" aria-label="Activity data mode">
-              <button type="button" className={`filter-button ${dataMode === 'demo' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('demo'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.demo ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'demo'}>Sample data</button>
-              <button type="button" className={`filter-button ${dataMode === 'live' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('live'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.live ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'live'} disabled={!liveAvailable}>Live sources</button>
-            </div>
-            <div className="range-grid" role="radiogroup" aria-label="Catch-up time range">
-              {rangeOptions.map(({ id, title, description, icon: Icon }) => {
-                const disabled = id === 'sinceLastCatchUp' && lastCompletedAt === null
-                return (
-                  <label key={id} className={`range-option ${selectedRange === id ? 'range-option--selected' : ''} ${disabled ? 'range-option--disabled' : ''}`}>
-                    <input
-                      type="radio"
-                      name="range"
-                      value={id}
-                      checked={selectedRange === id}
-                      onChange={() => setSelectedRange(id)}
-                      disabled={disabled}
-                    />
-                    <span className="range-icon"><Icon size={20} /></span>
-                    <strong>{title}</strong>
-                    <span className="range-description">{description}</span>
-                    <span className="range-dates">{getRangeDescription(id, now, lastCompletedAt)}</span>
-                  </label>
-                )
-              })}
-            </div>
-            <div className="controls-footer">
-              <div><Info size={16} /><span>{dataMode === 'demo' ? 'Using labeled Slack and GitHub sample records' : 'Using configured live source records'}</span></div>
-              <button className="primary-button" type="button" onClick={runCatchUp} disabled={isLoading}>
-                {isLoading ? <RefreshCw className="spin" size={17} /> : <Sparkles size={17} />}
-                {isLoading ? 'Preparing catch-up…' : 'Catch me up'}
-                {!isLoading && <ArrowRight size={17} />}
-              </button>
-            </div>
-            {lastCompletedAt && <p className="session-note"><Check size={14} /> Last successful {dataMode === 'live' ? 'live ' : ''}catch-up: {formatDateTime(lastCompletedAt)}. This timestamp is held only for the current app session.</p>}
-            {error && <p className="error-message" role="alert"><CircleAlert size={16} /> {error}</p>}
-          </section>
-
           {dataMode === 'demo' && <TaskAnalysisDemo />}
 
-          {result ? (
-            <>
-              <Summary result={result} onOpenSource={setSelectedActivity} />
-              <ActivityFeed activities={result.activities} mode={result.mode} onOpenSource={setSelectedActivity} />
-            </>
-          ) : (
-            <section className="welcome-panel">
-              <span className="welcome-icon"><SearchCheck size={25} /></span>
-              <div><h2>A clearer view of project activity</h2><p>Choose a range and run your first catch-up. You will see possible decisions, open questions, code changes, suggested next actions, and the complete source list.</p></div>
-              <ArrowRight size={23} />
+          <details className="activity-browser" open={dataMode === 'live' ? true : undefined}>
+            <summary>Browse all Slack and GitHub activity</summary>
+            <section className="catchup-controls" aria-labelledby="range-heading">
+              <div className="controls-heading"><div><h2 id="range-heading">Choose your time range</h2><p>Your catch-up begins when you click the button below.</p></div><Clock3 size={21} /></div>
+              <div className="filter-row" role="group" aria-label="Activity data mode">
+                <button type="button" className={`filter-button ${dataMode === 'demo' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('demo'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.demo ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'demo'}>Sample data</button>
+                <button type="button" className={`filter-button ${dataMode === 'live' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('live'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.live ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'live'} disabled={!liveAvailable}>Live sources</button>
+              </div>
+              <div className="range-grid" role="radiogroup" aria-label="Catch-up time range">
+                {rangeOptions.map(({ id, title, description, icon: Icon }) => {
+                  const disabled = id === 'sinceLastCatchUp' && lastCompletedAt === null
+                  return (
+                    <label key={id} className={`range-option ${selectedRange === id ? 'range-option--selected' : ''} ${disabled ? 'range-option--disabled' : ''}`}>
+                      <input
+                        type="radio"
+                        name="range"
+                        value={id}
+                        checked={selectedRange === id}
+                        onChange={() => setSelectedRange(id)}
+                        disabled={disabled}
+                      />
+                      <span className="range-icon"><Icon size={20} /></span>
+                      <strong>{title}</strong>
+                      <span className="range-description">{description}</span>
+                      <span className="range-dates">{getRangeDescription(id, now, lastCompletedAt)}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="controls-footer">
+                <div><Info size={16} /><span>{dataMode === 'demo' ? 'Using labeled Slack and GitHub sample records' : 'Using configured live source records'}</span></div>
+                <button className="primary-button" type="button" onClick={runCatchUp} disabled={isLoading}>
+                  {isLoading ? <RefreshCw className="spin" size={17} /> : <Sparkles size={17} />}
+                  {isLoading ? 'Preparing catch-up…' : 'Catch me up'}
+                  {!isLoading && <ArrowRight size={17} />}
+                </button>
+              </div>
+              {lastCompletedAt && <p className="session-note"><Check size={14} /> Last successful {dataMode === 'live' ? 'live ' : ''}catch-up: {formatDateTime(lastCompletedAt)}. This timestamp is held only for the current app session.</p>}
+              {error && <p className="error-message" role="alert"><CircleAlert size={16} /> {error}</p>}
             </section>
-          )}
+
+            {result ? (
+              <>
+                <Summary result={result} onOpenSource={setSelectedActivity} />
+                <ActivityFeed activities={result.activities} mode={result.mode} onOpenSource={setSelectedActivity} />
+              </>
+            ) : (
+              <section className="welcome-panel">
+                <span className="welcome-icon"><SearchCheck size={25} /></span>
+                <div><h2>A clearer view of project activity</h2><p>Choose a range and run your first catch-up. You will see possible decisions, open questions, code changes, suggested next actions, and the complete source list.</p></div>
+                <ArrowRight size={23} />
+              </section>
+            )}
+          </details>
           <footer className="page-footer">{dataMode === 'demo' ? 'InSync demo · Sample records are illustrative.' : 'InSync live mode · Read-only Slack and GitHub activity.'}</footer>
         </div>
       </main>

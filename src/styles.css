@@ -215,3 +215,8 @@ button { cursor: pointer; }
 .task-demo-card details { margin-bottom: 8px; }
 .task-demo-card summary { cursor: pointer; color: #285db0; }
 .task-demo-card pre { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.activity-browser { margin-top: 18px; }
+.activity-browser > summary { cursor: pointer; padding: 12px 0; color: #285db0; font-size: 13px; font-weight: 690; }
+.task-demo-interaction { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e0e7f0; }
+.task-demo-interaction > h3 { margin: 0 0 8px; font-size: 15px; }
