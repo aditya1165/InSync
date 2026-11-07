@@ -202,3 +202,16 @@ button { cursor: pointer; }
   .activity-topline { flex-direction: column; gap: 3px; }
   .activity-bottomline { align-items: flex-start; flex-direction: column; }
 }
+
+.task-demo { margin-top: 18px; color: #27374d; font-size: 13px; }
+.task-demo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.task-demo-actions select { max-width: 100%; padding: 6px; font: inherit; }
+.task-demo > .task-demo-actions + .task-demo-actions { margin-top: 12px; }
+.task-demo .filter-button:disabled { opacity: .55; }
+.task-demo .filter-button[aria-pressed="true"] { border-color: #4d83dc; background: #eff5ff; color: #356fc7; }
+.task-demo-card { margin-top: 12px; }
+.task-demo-card h3 { margin: 0; font-size: 14px; }
+.task-demo-card p { font-size: 12px; }
+.task-demo-card details { margin-bottom: 8px; }
+.task-demo-card summary { cursor: pointer; color: #285db0; }
+.task-demo-card pre { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }

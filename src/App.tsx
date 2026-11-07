@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { TaskAnalysisDemo } from './TaskAnalysisDemo.tsx'
 import {
   ArrowRight,
   CalendarDays,
@@ -426,6 +427,8 @@ export default function App() {
             {lastCompletedAt && <p className="session-note"><Check size={14} /> Last successful {dataMode === 'live' ? 'live ' : ''}catch-up: {formatDateTime(lastCompletedAt)}. This timestamp is held only for the current app session.</p>}
             {error && <p className="error-message" role="alert"><CircleAlert size={16} /> {error}</p>}
           </section>
+
+          {dataMode === 'demo' && <TaskAnalysisDemo />}
 
           {result ? (
             <>

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createApp } from './app.ts'
 import { demoEngine, profileDecision, profileDiscussion, profilePr, profileTask } from './analysis/demo.ts'
 import { explainImpact, suggestDecisionLink } from './analysis/service.ts'
 
@@ -56,4 +57,30 @@ test('an unavailable engine keeps PR and mapping evidence accessible', async () 
     reason: 'engine_unavailable',
     evidenceIds: [profileTask.dependency.evidenceId, profilePr.activity.id],
   })
+})
+
+test('sample HTTP endpoints return resolvable evidence without live providers', async () => {
+  const app = createApp({})
+  try {
+    const impact = await app.inject('/api/demo/analysis/profile/impact')
+    assert.equal(impact.statusCode, 200)
+    const { analysis, evidence: impactEvidence } = impact.json()
+    assert.equal(analysis.result.generatedBy, 'scripted_demo')
+    for (const id of analysis.result.suggestion.evidenceIds) {
+      assert.ok(impactEvidence.some((item: { id: string }) => item.id === id))
+    }
+
+    const links = await app.inject('/api/demo/analysis/profile/decision-links')
+    assert.equal(links.statusCode, 200)
+    const { analyses, evidence: linkEvidence } = links.json()
+    assert.deepEqual(analyses.map((item: { decisionStatus: string }) => item.decisionStatus), ['confirmed', 'unresolved'])
+    for (const { result } of analyses) {
+      assert.equal(result.generatedBy, 'scripted_demo')
+      for (const id of result.suggestion.evidenceIds) {
+        assert.ok(linkEvidence.some((item: { id: string }) => item.id === id))
+      }
+    }
+  } finally {
+    await app.close()
+  }
 })
