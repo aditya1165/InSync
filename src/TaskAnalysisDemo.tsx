@@ -39,21 +39,21 @@ const defaultTaskOptions: TaskOption[] = [
   {
     id: 'd0000000-0000-4000-8000-000000000001',
     alias: 'FE-12',
-    label: 'Build profile settings component (Sameer · Assigned)',
+    label: 'FE-12: Build profile settings component (Assigned to you)',
     endpoint: 'GET /users/id',
     component: 'ProfileSettings',
   },
   {
     id: 'FE-99',
     alias: 'FE-99',
-    label: 'Explore catalog search caching (Unmapped Task · Edge Case)',
+    label: 'FE-99: Explore catalog search caching (No open breaking PRs)',
     endpoint: 'GET /search/products',
     component: 'SearchCatalog',
   },
   {
     id: '__missing__',
     alias: 'None',
-    label: '[Simulate Missing Task ID · Error 400]',
+    label: 'None (Clear task selection)',
     endpoint: '',
     component: '',
   },
@@ -198,7 +198,7 @@ export function TaskAnalysisDemo() {
         <div className="demo-header-right">
           <span className="status-indicator-pill">
             <span className="indicator-dot glow-cyan" />
-            Zero-Shot LLM Reasoning · Epistemic Grounding
+            AI Impact Analysis · Zero-Shot Diff Grounded
           </span>
           <button
             type="button"
@@ -216,9 +216,9 @@ export function TaskAnalysisDemo() {
       {/* 2. Interactive Task Selector (Testing Normal vs Edge Cases) */}
       <div className="demo-selector-card">
         <div className="selector-label-group">
-          <span className="selector-eyebrow">FEATURE F1 / F2 · TASK CONTEXT SELECTOR</span>
+          <span className="selector-eyebrow">ASSIGNED TASK CONTEXT</span>
           <label htmlFor="task-select-input" className="selector-title">
-            Select an Assigned Frontend Task to Analyze
+            Select Assigned Task
           </label>
         </div>
 
@@ -364,12 +364,12 @@ export function TaskAnalysisDemo() {
       )}
 
 
-      {/* 3. Missing Task ID Error State (400 Bad Request Edge Case) */}
+      {/* 3. Missing Task ID State */}
       {impactData?.error && (
         <div className="error-banner-card" role="alert">
           <AlertTriangle size={20} className="text-red" />
           <div>
-            <strong>HTTP 400 Bad Request · Edge Case Handled</strong>
+            <strong>No Task Selected</strong>
             <p>{impactData.error}</p>
           </div>
         </div>
@@ -381,12 +381,12 @@ export function TaskAnalysisDemo() {
           <ShieldAlert size={22} className="text-amber" />
           <div>
             <div className="banner-title">
-              <strong>Impact Uncertain · Unmapped Task Context</strong>
-              <span className="badge-uncertain">Fallback Active</span>
+              <strong>No Breaking Changes Detected</strong>
+              <span className="badge-uncertain">Unaffected</span>
             </div>
             <p>{impactData.explanation}</p>
             <p className="banner-footnote">
-              ASN-03 / ASN-04 Rule: When an unmapped task context is selected, InSync does not hallucinate breaking changes; it surfaces uncertainty and prompts manual inspection.
+              InSync verifies that your task's API dependency is unaffected by current open pull requests, avoiding false alerts.
             </p>
           </div>
         </div>
@@ -398,10 +398,10 @@ export function TaskAnalysisDemo() {
           <div className="section-title-row">
             <div className="title-with-badge">
               <Sparkles size={17} className="text-cyan" />
-              <h3>Interaction 1: Task-Aware Code-Change Impact (F3)</h3>
+              <h3>Code Change Impact on Assigned Task</h3>
             </div>
             <span className="confidence-badge badge-high">
-              <ShieldCheck size={13} /> Grounded · Direct PR #18 Diff Match
+              <ShieldCheck size={13} /> Verified Breaking Change · Grounded in PR #18 Diff
             </span>
           </div>
 
@@ -511,15 +511,15 @@ export function TaskAnalysisDemo() {
         </div>
       )}
 
-      {/* 6. Interaction 2: Feature F4 Decision-to-PR Linking & Planted Trap */}
+      {/* 6. Feature F4: Decision-to-PR Linking */}
       {decisionsData && (
         <div className="demo-section-block">
           <div className="section-title-row">
             <div className="title-with-badge">
               <MessageSquare size={17} className="text-cyan" />
-              <h3>Interaction 2: Decision-to-PR Linking & Planted Trap (F4 / F5)</h3>
+              <h3>Related Team Discussions & Decision Alignment</h3>
             </div>
-            <span className="provenance-tag">USC HCI Evaluation Testbed</span>
+            <span className="provenance-tag">Cross-Source Decision Alignment</span>
           </div>
 
           <div className="decisions-grid">
@@ -557,9 +557,9 @@ export function TaskAnalysisDemo() {
 
                   {isTrap && (
                     <div className="trap-warning-banner">
-                      <ShieldAlert size={15} className="text-red flex-shrink-0" />
+                      <ShieldAlert size={15} className="text-amber flex-shrink-0" />
                       <span>
-                        <strong>Planted Evaluation Trap:</strong> This is an unverified proposal regarding <code>email_verified</code>. It is NOT an approved fact or merged PR change.
+                        <strong>Unverified Proposal:</strong> This thread discusses an unconfirmed proposal regarding <code>email_verified</code>. It is NOT an approved team decision or merged pull request.
                       </span>
                     </div>
                   )}
@@ -581,12 +581,12 @@ export function TaskAnalysisDemo() {
                       {isTrap ? (
                         <>
                           <ShieldAlert size={14} className="text-amber flex-shrink-0" />
-                          <strong>Epistemic Grounding: Unverified Proposal</strong>
+                          <strong>Verification Status: Unverified Proposal</strong>
                         </>
                       ) : (
                         <>
                           <ShieldCheck size={14} className="text-emerald flex-shrink-0" />
-                          <strong>Epistemic Grounding: Verified Code Match</strong>
+                          <strong>Verification Status: Confirmed Team Decision</strong>
                         </>
                       )}
                     </div>
@@ -600,7 +600,7 @@ export function TaskAnalysisDemo() {
                   {/* F5 User Controls */}
                   <div className="f5-review-container">
                     <div className="f5-label-row">
-                      <span>Human Verification (F5):</span>
+                      <span>Your Decision:</span>
                       <span className={`review-status-label review-status-${review.toLowerCase().replace(/\s+/g, '-')}`}>
                         {review}
                       </span>
