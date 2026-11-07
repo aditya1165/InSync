@@ -34,6 +34,13 @@ export interface DemoImpactResponse {
   confidence?: string
   confidenceScore?: number
   error?: string
+  zeroShot?: {
+    model: string
+    systemPrompt: string
+    promptTemplate: string
+    reasoningTrace: string
+    generatedBy: string
+  }
 }
 
 export interface DecisionItem {

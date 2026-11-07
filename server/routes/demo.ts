@@ -38,9 +38,10 @@ export function registerDemoRoutes(app: FastifyInstance) {
       }
 
       // Check if task maps to the breaking PR endpoint GET /users/id
+      const normalizedEp = endpoint?.trim().toLowerCase().replace(/\/+$/, '')
       const mapsToBreakingEndpoint =
-        endpoint === 'GET /users/id' ||
-        endpoint === 'GET /users/:id' ||
+        normalizedEp === 'get /users/id' ||
+        normalizedEp === 'get /users/:id' ||
         isSameerTaskId(taskId)
 
       const title = customTitle || sameerTask.title

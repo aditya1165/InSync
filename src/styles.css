@@ -1490,3 +1490,120 @@ button { cursor: pointer; }
   transform: translateY(-2px);
   box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.7), 0 0 28px rgba(0, 242, 254, 0.08);
 }
+
+/* Zero-Shot Prompt Inspection Drawer & Distinct Review States */
+.btn-prompt-inspect {
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  color: #00f2fe;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.2s ease;
+}
+
+.btn-prompt-inspect:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.prompt-inspection-drawer {
+  background: #05080e;
+  border: 1px solid #1a273f;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prompt-drawer-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #00f2fe;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.prompt-pre {
+  margin: 0;
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  background: #090f1b;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #131d2e;
+}
+
+.prompt-trace-p {
+  margin: 0;
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+/* Distinct Action Active States */
+.f5-active-confirm {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #10b981 !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35) !important;
+}
+
+.f5-active-not-relevant {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35) !important;
+}
+
+.f5-active-remind-later {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35) !important;
+}
+
+/* 3D-AI Spatial Awareness Canvas & 3D Interactive Controls */
+.spatial-canvas-card {
+  background: #090f1d;
+  border: 1px solid #1e2f50;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.7), 0 0 24px rgba(0, 242, 254, 0.08);
+  position: relative;
+}
+
+.spatial-canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #0d1526;
+  border-bottom: 1px solid #1a2944;
+}
+
+.spatial-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00f2fe;
+  box-shadow: 0 0 8px #00f2fe;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+.spatial-canvas {
+  display: block;
+  background: radial-gradient(circle at center, #0f1c36 0%, #060a14 70%);
+}

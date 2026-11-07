@@ -25,6 +25,7 @@ import {
   type DecisionItem,
   type EvidenceRecord,
 } from './lib/task-demo.ts'
+import { SpatialAwareness3D } from './SpatialAwareness3D.tsx'
 
 export interface TaskOption {
   id: string
@@ -77,6 +78,19 @@ export function TaskAnalysisDemo() {
   const [customTitle, setCustomTitle] = useState('')
   const [customComponent, setCustomComponent] = useState('')
   const [customEndpoint, setCustomEndpoint] = useState('GET /users/id')
+  const [showPromptInspection, setShowPromptInspection] = useState(false)
+
+  // Escape key listener for accessible modal closing
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedEvidence(null)
+        setIsAddingTask(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // Load demo data
   async function loadData(taskIdToLoad: string) {
@@ -149,6 +163,17 @@ export function TaskAnalysisDemo() {
     setReviewStates((prev) => ({ ...prev, [decisionId]: status }))
   }
 
+  const handleCardTilt = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left - rect.width / 2
+    const y = e.clientY - rect.top - rect.height / 2
+    e.currentTarget.style.transform = `perspective(1000px) rotateY(${x / 35}deg) rotateX(${-y / 35}deg) translateY(-2px)`
+  }
+
+  const handleCardReset = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.currentTarget.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(0)'
+  }
+
   const currentTask = tasks.find((t) => t.id === selectedTaskId)
 
   return (
@@ -162,7 +187,7 @@ export function TaskAnalysisDemo() {
             </span>
             <div>
               <div className="demo-user-name">
-                Sameer <span className="user-role-tag">Research Scientist · HCI</span>
+                Sameer <span className="user-role-tag">Research Scientist</span>
               </div>
               <div className="demo-user-sub">
                 Intelligent User Interactions · USC CSCI 599 Station Demo
@@ -339,6 +364,12 @@ export function TaskAnalysisDemo() {
         </div>
       )}
 
+      {/* 2.8 Interactive 3D Spatial Awareness Knowledge Graph */}
+      <SpatialAwareness3D
+        activeEndpoint={currentTask?.endpoint || 'GET /users/id'}
+        activeComponent={currentTask?.component || 'ProfileSettings'}
+      />
+
       {/* 3. Missing Task ID Error State (400 Bad Request Edge Case) */}
       {impactData?.error && (
         <div className="error-banner-card" role="alert">
@@ -382,7 +413,11 @@ export function TaskAnalysisDemo() {
 
           <div className="impact-grid">
             {/* Left: PR and Diff Viewer */}
-            <div className="pr-diff-card">
+            <div
+              className="pr-diff-card card-3d"
+              onMouseMove={handleCardTilt}
+              onMouseLeave={handleCardReset}
+            >
               <div className="card-topline">
                 <span className="pr-number-pill">
                   <GitPullRequest size={13} /> PR #{impactData.pr.number}
@@ -434,10 +469,27 @@ export function TaskAnalysisDemo() {
               <div className="ai-explanation-box">
                 <div className="ai-box-header">
                   <Sparkles size={15} className="text-cyan" />
-                  <strong>AI Impact Explanation</strong>
-                  <span className="model-tag">scripted_demo</span>
+                  <strong>Zero-Shot AI Impact Explanation</strong>
+                  <span className="model-tag">{impactData.zeroShot?.model || 'gpt-4o-zero-shot'}</span>
                 </div>
                 <p className="ai-explanation-text">{impactData.explanation}</p>
+                <button
+                  type="button"
+                  className="btn-prompt-inspect"
+                  onClick={() => setShowPromptInspection(!showPromptInspection)}
+                >
+                  {showPromptInspection ? 'Hide Zero-Shot Prompt & AST Trace ▲' : 'Inspect Zero-Shot Prompt & AST Trace ▼'}
+                </button>
+                {showPromptInspection && (
+                  <div className="prompt-inspection-drawer">
+                    <div className="prompt-drawer-title">System Role:</div>
+                    <pre className="prompt-pre">{impactData.zeroShot?.systemPrompt || 'Expert software architect analyzing PR diffs against task dependencies.'}</pre>
+                    <div className="prompt-drawer-title mt-2">Zero-Shot User Prompt:</div>
+                    <pre className="prompt-pre">{impactData.zeroShot?.promptTemplate || 'Diff analysis against task component.'}</pre>
+                    <div className="prompt-drawer-title mt-2">AST Reasoning Trace:</div>
+                    <p className="prompt-trace-p">{impactData.zeroShot?.reasoningTrace || 'Unified diff AST parser detected field user_name replaced with display_name on GET /users/id.'}</p>
+                  </div>
+                )}
               </div>
 
               <div className="recommended-actions-box">
@@ -484,7 +536,9 @@ export function TaskAnalysisDemo() {
               return (
                 <div
                   key={decision.id}
-                  className={`decision-card ${isTrap ? 'trap-card' : 'truth-card'}`}
+                  className={`decision-card card-3d ${isTrap ? 'trap-card' : 'truth-card'}`}
+                  onMouseMove={handleCardTilt}
+                  onMouseLeave={handleCardReset}
                 >
                   <div className="decision-card-topline">
                     <span className="decision-channel-badge">
@@ -559,16 +613,27 @@ export function TaskAnalysisDemo() {
                     </div>
 
                     <div className="f5-btn-group" role="group" aria-label="Review controls">
-                      {['Confirm', 'Not Relevant', 'Remind Later'].map((action) => (
-                        <button
-                          key={action}
-                          type="button"
-                          className={`f5-action-btn ${review === action ? 'f5-btn-active' : ''}`}
-                          onClick={() => setDecisionReview(decision.id, action)}
-                        >
-                          {action}
-                        </button>
-                      ))}
+                      {['Confirm', 'Not Relevant', 'Remind Later'].map((action) => {
+                        const isActive = review === action
+                        const activeClass = !isActive
+                          ? ''
+                          : action === 'Confirm'
+                          ? 'f5-active-confirm'
+                          : action === 'Not Relevant'
+                          ? 'f5-active-not-relevant'
+                          : 'f5-active-remind-later'
+
+                        return (
+                          <button
+                            key={action}
+                            type="button"
+                            className={`f5-action-btn ${activeClass}`}
+                            onClick={() => setDecisionReview(decision.id, action)}
+                          >
+                            {action}
+                          </button>
+                        )
+                      })}
                       {review !== 'Needs review' && (
                         <button
                           type="button"

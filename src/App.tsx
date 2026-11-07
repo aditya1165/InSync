@@ -374,8 +374,8 @@ export default function App() {
         <div className="sidebar-active"><Sparkles size={18} /><span>Catch-up</span><ChevronRight size={16} /></div>
         <div className="sidebar-spacer" />
         <div className="workspace-card">
-          <span className="workspace-avatar">D</span>
-          <div><strong>InSync workspace</strong><span>{dataMode === 'live' ? 'Configured live sources' : 'Sample activity'}</span></div>
+          <span className="workspace-avatar">S</span>
+          <div><strong>Sameer</strong><span>Research Scientist · Demo</span></div>
         </div>
         <p className="sidebar-footnote">{liveAvailable ? 'Live sources are available for this local project.' : 'Configure Slack or GitHub in .env to enable live activity.'}</p>
       </aside>
