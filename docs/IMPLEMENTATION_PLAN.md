@@ -106,9 +106,28 @@ git switch -c codex/<scoped-feature>
 ```
 Do not overwrite or force-push teammates' branches.
 
+## F3/F4 sample demo and module handoff
+
+The feature branch builds on `6f36a35`, which adds Fastify, read-only Slack/GitHub providers, and a Supabase database foundation. The baseline above records the earlier catch-up prototype. The current analysis slice runs through the existing Fastify server and uses explicitly scripted samples. Start with `npm run dev` and click **Catch Me Up** in Sample mode. The demo matches predefined assigned tasks to the changed APIs and ranks open Profile PR #18 ahead of draft Catalog PR #14. Each card shows what changed, the affected task, why it ranks there, and the suggested next action. Expand **Task impact and GitHub evidence** (F3) or **Related Slack discussions and decisions** (F4) to inspect sources and review each suggestion. **Filter by task** defaults to **All my tasks** and filters the loaded cards without repeating analysis. Expand **Browse all Slack and GitHub activity** for the time-range controls, summary, and full source feed.
+
+**ASN04 prototype adjustment.** The submitted ASN03 F1 flow begins with task selection. The gallery flow starts with catch-up across predefined assigned tasks and offers task selection as a result filter. Both analyses remain task-specific. Profile analysis uses the existing scripted endpoints. Catalog is a frontend fixture built from the existing draft PR and Slack records, with a provisional impact based on the available review text.
+
+```ts
+import { explainImpact, suggestDecisionLink } from './server/analysis/service.ts'
+import { demoEngine, profileTask, profilePr, profileDiscussion } from './server/analysis/demo.ts'
+
+const input = { task: profileTask, pr: profilePr }
+const impact = await explainImpact(input, demoEngine)
+const link = await suggestDecisionLink({ ...input, decision: profileDiscussion }, demoEngine)
+```
+
+`npm test` includes `server/analysis.test.ts`. To integrate, adapt existing provider records to the module inputs after resolving authenticated user assignments, API mappings, and authorized sources. Supply a complete relevant PR patch and the Slack parent and relevant replies. Resolve returned evidence IDs against those inputs for display. Derive Slack decision status from verified source evidence and track the user's link review separately. Connect an approved server-side model engine after agreeing on source access and redaction with Aditya. The sample endpoints and review UI are wired. Live provider and model calls for F3/F4 remain integration work. Reviews apply to the current demo session.
+
 ## 8. Progress log
 | Date | Owner | Verified change | Tests | Remaining issue / PR |
 |---|---|---|---|---|
 | 2026-11-06 | Documentation audit | Read both original PDFs and all repository planning docs. Audited Aditya’s local baseline and recorded F1–F5 gaps and demo criteria. | Node 26.12.0: 6 tests passed and build passed. Browser walkthrough pending. | Confirm shared contracts and fixtures, then implement M1. |
+| 2026-11-06 | F3/F4 module | Added offline Profile impact and Slack decision-link samples with evidence validation and uncertainty handling. | Node 26.12.0. All 17 tests and the build passed. Ran both sample calls directly. | Connect the module to the existing Fastify routes, authorized providers, model engine, and review UI. |
+| 2026-11-06 | Sample UI | Wired Profile task selection, PR impact, both Slack link cases, evidence, and session review to Fastify sample routes. | All 18 tests and build passed. Chrome verified both interactions, all review actions, undo, reset, and existing catch-up. | Connect live authorized evidence and model analysis. |
 
 Only mark implemented features after code review and preferably runnable validation. Do not claim work is done based solely on intent.
