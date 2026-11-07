@@ -25,7 +25,6 @@ import {
   type DecisionItem,
   type EvidenceRecord,
 } from './lib/task-demo.ts'
-import { SpatialAwareness3D } from './SpatialAwareness3D.tsx'
 
 export interface TaskOption {
   id: string
@@ -364,11 +363,6 @@ export function TaskAnalysisDemo() {
         </div>
       )}
 
-      {/* 2.8 Interactive 3D Spatial Awareness Knowledge Graph */}
-      <SpatialAwareness3D
-        activeEndpoint={currentTask?.endpoint || 'GET /users/id'}
-        activeComponent={currentTask?.component || 'ProfileSettings'}
-      />
 
       {/* 3. Missing Task ID Error State (400 Bad Request Edge Case) */}
       {impactData?.error && (
