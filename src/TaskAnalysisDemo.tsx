@@ -15,7 +15,7 @@ function ReviewCard({ title, evidence, children }: { title: string; evidence: Ev
   const [review, setReview] = useState('Needs review')
   return (
     <article className="insight-card task-demo-card">
-      <h3>{title}</h3>
+      <h4>{title}</h4>
       {children}
       {evidence.map((item) => (
         <details key={item.id}>
@@ -72,7 +72,7 @@ export function TaskAnalysisDemo() {
       <div className="controls-heading">
         <div>
           <h2 id="task-demo-title">Try the two sample interactions</h2>
-          <p>Choose a task to see how a PR affects it and which team decisions relate to it. All results use scripted samples.</p>
+          <p>Start with your assigned frontend task. This demo uses scripted Slack and GitHub samples.</p>
         </div>
       </div>
       <div className="task-demo-actions">
@@ -86,49 +86,48 @@ export function TaskAnalysisDemo() {
 
       {task && (
         <>
-          <p>ProfileSettings uses <code>GET /users/:id</code>.</p>
-          <div className="task-demo-actions">
-            <button type="button" className="primary-button" disabled={busy} onClick={() => runSample('decision-links')}>
-              Run task catch-up
-            </button>
-          </div>
-        </>
-      )}
-
-      {busy && <p role="status">Preparing sample analysis…</p>}
-      {error && <p className="error-message" role="alert">Could not load the sample analysis. Check that the local API is running and try again.</p>}
-
-      {task && (
-        <>
-          <section className="task-demo-interaction" aria-labelledby="task-demo-impact">
-            <h3 id="task-demo-impact">1. Does this PR affect my task?</h3>
-            <div className="task-demo-actions">
-              <span>Relevant change · Open PR #18</span>
-              <button type="button" className="filter-button" disabled={busy} onClick={() => runSample('impact')}>Explain PR impact</button>
+          <p>Profile Settings reads <code>user_name</code> from <code>GET /users/:id</code>.</p>
+          <article className="insight-card task-demo-card" aria-labelledby="task-demo-pr">
+            <div className="insight-card-header">
+              <h3 id="task-demo-pr">PR #18 · Add display_name to profile response</h3>
+              <span className="status-pill">Open</span>
             </div>
-          {impact && impactResult?.status === 'suggested' && (
-            <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => impactResult.suggestion.evidenceIds.includes(item.id))}>
-              <p>{impactResult.suggestion.summary}</p>
-              <p><strong>Next action.</strong> {impactResult.suggestion.nextAction}</p>
-            </ReviewCard>
-          )}
-          {impact && impactResult?.status !== 'suggested' && <p role="status">Impact uncertain. Inspect the sample PR before acting.</p>}
+            <p>Relevant GitHub sample</p>
+            <p>The proposed API response adds <code>display_name</code> and keeps <code>user_name</code>.</p>
+          </article>
 
+          {busy && <p role="status">Preparing sample analysis…</p>}
+          {error && <p className="error-message" role="alert">Could not load the sample analysis. Check that the local API is running and try again.</p>}
+
+          <section className="task-demo-interaction" aria-labelledby="task-demo-impact">
+            <h3 id="task-demo-impact">1. How does this change affect my task?</h3>
+            <button type="button" className="primary-button" disabled={busy} onClick={() => runSample('impact')}>
+              Explain impact on Profile Settings
+            </button>
+            {impact && impactResult?.status === 'suggested' && (
+              <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => impactResult.suggestion.evidenceIds.includes(item.id))}>
+                <p>{impactResult.suggestion.summary}</p>
+                <p><strong>Next action.</strong> {impactResult.suggestion.nextAction}</p>
+              </ReviewCard>
+            )}
+            {impact && impactResult?.status !== 'suggested' && <p role="status">Impact uncertain. Inspect the sample PR before acting.</p>}
           </section>
 
           <section className="task-demo-interaction" aria-labelledby="task-demo-decisions">
-            <h3 id="task-demo-decisions">2. Which team decisions relate to this PR?</h3>
-            {!links && <p>Run task catch-up to see suggested Slack links.</p>}
-          {links?.analyses.map(({ decisionStatus, result }) => {
-            if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
-            const title = decisionStatus === 'confirmed' ? 'Slack decision link' : 'Possible Slack discussion link'
-            return (
-              <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
-                <p>Slack decision status · {decisionStatus}</p>
-                <p>{result.suggestion.summary}</p>
-              </ReviewCard>
-            )
-          })}
+            <h3 id="task-demo-decisions">2. What did the team discuss about this change?</h3>
+            <button type="button" className="filter-button" disabled={busy} onClick={() => runSample('decision-links')}>
+              Show related Slack discussions
+            </button>
+            {links?.analyses.map(({ decisionStatus, result }) => {
+              if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
+              const title = decisionStatus === 'confirmed' ? 'Slack decision link' : 'Possible Slack discussion link'
+              return (
+                <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
+                  <p>Slack decision status · {decisionStatus}</p>
+                  <p>{result.suggestion.summary}</p>
+                </ReviewCard>
+              )
+            })}
           </section>
         </>
       )}

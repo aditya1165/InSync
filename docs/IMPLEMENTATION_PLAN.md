@@ -108,7 +108,7 @@ Do not overwrite or force-push teammates' branches.
 
 ## F3/F4 sample demo and module handoff
 
-The feature branch builds on `6f36a35`, which adds Fastify, read-only Slack/GitHub providers, and a Supabase database foundation. The baseline above records the earlier catch-up prototype. The current analysis slice runs through the existing Fastify server and uses explicitly scripted samples. Start with `npm run dev`, then open **Try the two sample interactions** in Sample mode. Choose **Profile Settings**, run task catch-up, and click **Explain PR impact**. Open the PR diff and both sources on the Slack suggestions. Try a review action, undo it, and reset for the next visitor. Expand **Browse all Slack and GitHub activity** to use the time-based catch-up and inspect its summary and source records.
+The feature branch builds on `6f36a35`, which adds Fastify, read-only Slack/GitHub providers, and a Supabase database foundation. The baseline above records the earlier catch-up prototype. The current analysis slice runs through the existing Fastify server and uses explicitly scripted samples. Start with `npm run dev`, then open **Try the two sample interactions** in Sample mode. Choose **Profile Settings** and read the summary of open PR #18. Click **Explain impact on Profile Settings** and **Show related Slack discussions** under their respective questions. Open the PR diff and both sources on the Slack suggestions. Try a review action, undo it, and reset for the next visitor. Expand **Browse all Slack and GitHub activity** to use the time-based catch-up and inspect its summary and source records.
 
 ```ts
 import { explainImpact, suggestDecisionLink } from './server/analysis/service.ts'
