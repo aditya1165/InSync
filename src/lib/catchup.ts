@@ -7,6 +7,7 @@ export type ActivityKind =
   | 'github_issue'
   | 'github_pull_request'
   | 'github_commit'
+  | 'github_issue_comment'
   | 'github_review_comment'
 
 export type InsightCategory = 'possible_decision' | 'unresolved' | 'code_change' | 'next_action'
@@ -36,7 +37,19 @@ export interface CatchUpResult {
   activities: Activity[]
   insights: Insight[]
   generatedAt: Date
-  mode: 'demo'
+  mode: 'demo' | 'live'
+  sources?: Record<ActivitySource, SourceStatus>
+}
+
+export type SourceStatus =
+  | { state: 'ready' | 'unconfigured'; count: number }
+  | { state: 'error'; count: number; message: string }
+
+export interface ActivityResponse {
+  mode: 'live'
+  window: { start: string; end: string }
+  activities: Activity[]
+  sources: Record<ActivitySource, SourceStatus>
 }
 
 export interface ActivityProvider {
