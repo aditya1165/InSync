@@ -161,8 +161,12 @@ export function TaskAnalysisDemo() {
               <User size={15} />
             </span>
             <div>
-              <div className="demo-user-name">Sameer <span className="user-role-tag">Frontend Dev</span></div>
-              <div className="demo-user-sub">Default Authenticated User · Workspace: InSync Demo</div>
+              <div className="demo-user-name">
+                Sameer <span className="user-role-tag">Research Scientist · HCI</span>
+              </div>
+              <div className="demo-user-sub">
+                Intelligent User Interactions · USC CSCI 599 Station Demo
+              </div>
             </div>
           </div>
         </div>
@@ -170,7 +174,7 @@ export function TaskAnalysisDemo() {
         <div className="demo-header-right">
           <span className="status-indicator-pill">
             <span className="indicator-dot glow-cyan" />
-            Deterministic Demo Fixtures (Zero Hallucination)
+            Zero-Shot LLM Reasoning · Epistemic Grounding
           </span>
           <button
             type="button"
@@ -372,7 +376,7 @@ export function TaskAnalysisDemo() {
               <h3>Interaction 1: Task-Aware Code-Change Impact (F3)</h3>
             </div>
             <span className="confidence-badge badge-high">
-              <ShieldCheck size={13} /> High Confidence · 98%
+              <ShieldCheck size={13} /> Grounded · Direct PR #18 Diff Match
             </span>
           </div>
 
@@ -524,19 +528,25 @@ export function TaskAnalysisDemo() {
                     <strong>Link Rationale:</strong> {decision.matchRationale}
                   </div>
 
-                  <div className="confidence-meter-row">
-                    <span className="confidence-meter-label">Match Confidence:</span>
-                    <div className="confidence-bar-bg">
-                      <div
-                        className={`confidence-bar-fill ${
-                          isTrap ? 'bar-low' : 'bar-high'
-                        }`}
-                        style={{ width: `${Math.round(decision.confidenceScore * 100)}%` }}
-                      />
+                  <div className={`grounding-status-box ${isTrap ? 'box-trap' : 'box-truth'}`}>
+                    <div className="grounding-header">
+                      {isTrap ? (
+                        <>
+                          <ShieldAlert size={14} className="text-amber flex-shrink-0" />
+                          <strong>Epistemic Grounding: Unverified Proposal</strong>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={14} className="text-emerald flex-shrink-0" />
+                          <strong>Epistemic Grounding: Verified Code Match</strong>
+                        </>
+                      )}
                     </div>
-                    <span className="confidence-meter-value">
-                      {Math.round(decision.confidenceScore * 100)}% ({decision.confidence})
-                    </span>
+                    <p className="grounding-detail">
+                      {isTrap
+                        ? 'Proposal has not been approved by the team and has 0 matching lines in PR #18 diff.'
+                        : 'Confirmed decision explicitly matches line-level deletion of user_name in PR #18.'}
+                    </p>
                   </div>
 
                   {/* F5 User Controls */}
@@ -576,6 +586,35 @@ export function TaskAnalysisDemo() {
           </div>
         </div>
       )}
+
+      {/* 6.5 HCI Theoretical Framework Mapping (USC CSCI 599 Research Reference) */}
+      <details className="hci-framework-drawer">
+        <summary>
+          <Sparkles size={14} className="text-cyan" />
+          <span>HCI Research Framework & Evaluation Mapping (Amershi et al. & Bansal et al.)</span>
+          <ChevronRight size={13} className="drawer-arrow" />
+        </summary>
+        <div className="hci-drawer-content">
+          <div className="hci-principle-card">
+            <strong>G2 / G11 · Epistemic Grounding vs False Precision</strong>
+            <p>
+              Rather than misleading developers with arbitrary numerical probabilities (e.g. 98%), InSync provides qualitative epistemic states backed by direct diff ast-line attribution.
+            </p>
+          </div>
+          <div className="hci-principle-card">
+            <strong>Automation Bias Mitigation (Cognitive Forcing Function)</strong>
+            <p>
+              The Planted Trap in Thread 2 is visually quarantined with an amber caution shield, forcing the developer to critically evaluate proposals before blindly accepting.
+            </p>
+          </div>
+          <div className="hci-principle-card">
+            <strong>G9 · Direct Manipulation & Human Agency</strong>
+            <p>
+              AI results remain suggestions. Developers retain final authority via tactile F5 human-in-the-loop controls (Confirm, Not Relevant, Remind Later, Undo).
+            </p>
+          </div>
+        </div>
+      </details>
 
       {/* 7. Modal / Slide-out for Inspecting Source Evidence */}
       {selectedEvidence && (

@@ -35,6 +35,7 @@ export interface DemoDecisionLink {
   prTitle: string
   confidence: 'high' | 'low'
   confidenceScore: number
+  groundingLabel: string
   decisionStatus: 'confirmed' | 'unresolved' | 'proposed'
   linkStatus: 'confirmed' | 'uncertain'
   statusLabel: string
@@ -96,9 +97,10 @@ export const demoSlackTruth: DemoDecisionLink = {
   prTitle: demoPullRequest.title,
   confidence: 'high',
   confidenceScore: 0.98,
+  groundingLabel: 'Direct Code Diff Grounding',
   decisionStatus: 'confirmed',
   linkStatus: 'confirmed',
-  statusLabel: 'Confirmed',
+  statusLabel: 'Confirmed Fact · Direct Diff Match',
   matchRationale:
     'The Slack decision explicitly states deprecation of user_name and adoption of display_name, directly matching the breaking diff in PR #18.',
   evidenceIds: [demoPullRequest.id, 'demo:slack:thread:truth'],
@@ -118,6 +120,7 @@ export const demoSlackTrap: DemoDecisionLink = {
   prTitle: demoPullRequest.title,
   confidence: 'low',
   confidenceScore: 0.32,
+  groundingLabel: 'Unverified Proposal · Insufficient Evidence',
   decisionStatus: 'unresolved',
   linkStatus: 'uncertain',
   statusLabel: 'Not a verified fact / Impact uncertain',

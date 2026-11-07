@@ -104,7 +104,7 @@ test('GET /api/demo/decisions returns confirmed truth link and planted evaluatio
     assert.ok(truth)
     assert.equal(truth.confidence, 'high')
     assert.equal(truth.decisionStatus, 'confirmed')
-    assert.equal(truth.statusLabel, 'Confirmed')
+    assert.match(truth.statusLabel, /Confirmed/i)
     assert.match(truth.slackMessage, /We are officially deprecating user_name/)
 
     // Match 2: The Evaluation Trap

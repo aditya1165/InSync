@@ -1362,3 +1362,131 @@ button { cursor: pointer; }
   box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
   transform: translateY(-1px);
 }
+
+/* Epistemic Grounding & HCI Theory Framework */
+.grounding-status-box {
+  padding: 12px 14px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.box-truth {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.box-trap {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.grounding-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #f1f5f9;
+}
+
+.text-emerald {
+  color: #10b981;
+}
+
+.grounding-detail {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.grounding-detail code {
+  color: #38bdf8;
+  background: #111c33;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* HCI Research Drawer */
+.hci-framework-drawer {
+  background: #0d1526;
+  border: 1px solid #1e2e4f;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.hci-framework-drawer summary {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.hci-framework-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.drawer-arrow {
+  margin-left: auto;
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.hci-framework-drawer[open] .drawer-arrow {
+  transform: rotate(90deg);
+}
+
+.hci-drawer-content {
+  padding: 14px 16px;
+  border-top: 1px solid #1a273f;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  background: #090f1d;
+}
+
+@media (max-width: 860px) {
+  .hci-drawer-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hci-principle-card {
+  padding: 10px 12px;
+  background: #111c33;
+  border: 1px solid #1e2f50;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hci-principle-card strong {
+  font-size: 11px;
+  color: #00f2fe;
+}
+
+.hci-principle-card p {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+/* 3D Depth Card Elevation */
+.pr-diff-card, .explanation-actions-card, .decision-card {
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 242, 254, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.decision-card:hover, .pr-diff-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.7), 0 0 28px rgba(0, 242, 254, 0.08);
+}
