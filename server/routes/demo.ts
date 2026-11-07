@@ -10,6 +10,9 @@ import {
 
 export interface DemoImpactQuery {
   taskId?: string
+  endpoint?: string
+  taskTitle?: string
+  component?: string
 }
 
 export function registerDemoRoutes(app: FastifyInstance) {
@@ -21,6 +24,9 @@ export function registerDemoRoutes(app: FastifyInstance) {
       reply: FastifyReply,
     ) => {
       const taskId = request.query.taskId?.trim()
+      const endpoint = request.query.endpoint?.trim()
+      const customTitle = request.query.taskTitle?.trim()
+      const customComponent = request.query.component?.trim()
 
       // Edge Case 1: Missing taskId -> 400 Bad Request
       if (!taskId) {
@@ -30,16 +36,25 @@ export function registerDemoRoutes(app: FastifyInstance) {
         return
       }
 
-      // Matching Task: Sameer's seeded task
-      if (isSameerTaskId(taskId)) {
+      // Check if task maps to the breaking PR endpoint GET /users/id
+      const mapsToBreakingEndpoint =
+        endpoint === 'GET /users/id' ||
+        endpoint === 'GET /users/:id' ||
+        isSameerTaskId(taskId)
+
+      if (mapsToBreakingEndpoint) {
+        const title = customTitle || sameerTask.title
+        const component = customComponent || sameerTask.component
+
         return reply.code(200).send({
-          taskId: sameerTask.id,
-          taskTitle: sameerTask.title,
-          component: sameerTask.component,
+          taskId,
+          taskTitle: title,
+          component,
           status: 'impact_detected',
           uncertainty: false,
-          explanation:
-            'The response field user_name is replaced by display_name. This may affect the profile component data mapping.',
+          explanation: customComponent
+            ? `The response field user_name is replaced by display_name. This may affect the ${customComponent} component data mapping.`
+            : 'The response field user_name is replaced by display_name. This may affect the profile component data mapping.',
           recommendedActions: [
             'Update API call mapping',
             'Check response fields',
@@ -67,15 +82,16 @@ export function registerDemoRoutes(app: FastifyInstance) {
         })
       }
 
-      // Edge Case 2: Unknown taskId -> 200 with impact uncertain flag & empty recommendations
+      // Edge Case 2: Unknown or unmapped task context -> 200 with impact uncertain
       return reply.code(200).send({
         taskId,
         status: 'uncertain',
         impactUncertain: true,
         uncertainty: true,
         reason: 'Unknown or unmapped task context. Impact uncertain.',
-        explanation:
-          'Impact uncertain: No known API dependency mapping found for this task.',
+        explanation: endpoint
+          ? `Impact uncertain: No known open pull requests affect endpoint ${endpoint}.`
+          : 'Impact uncertain: No known API dependency mapping found for this task.',
         recommendedActions: [],
         evidenceIds: [],
         evidence: [],

@@ -1224,3 +1224,141 @@ button { cursor: pointer; }
   color: #64748b;
   font-size: 10px;
 }
+
+/* Selector Action Buttons & Add Task Modal */
+.selector-btn-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-ghost-cyan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #1e2e4f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost-cyan:hover {
+  color: #94a3b8;
+  border-color: #38bdf8;
+}
+
+.add-task-card {
+  max-width: 480px;
+}
+
+.custom-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cyan-input {
+  background: #111c33;
+  color: #f8fafc;
+  border: 1px solid #23375b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cyan-input:focus {
+  border-color: #00f2fe;
+  box-shadow: 0 0 0 2px rgba(0, 242, 254, 0.2);
+}
+
+.mt-2 {
+  margin-top: 6px;
+}
+
+.quick-endpoint-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.endpoint-preset-btn {
+  background: #111c33;
+  color: #8b9bb4;
+  border: 1px solid #1e2e4f;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.endpoint-preset-btn:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.preset-active {
+  background: #0284c7;
+  color: #fff;
+  border-color: #00f2fe;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.form-hint code {
+  color: #00f2fe;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cyan-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #0284c7, #00f2fe);
+  color: #080b10;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cyan-btn-primary:hover {
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+  transform: translateY(-1px);
+}

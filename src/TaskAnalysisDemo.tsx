@@ -9,7 +9,9 @@ import {
   GitPullRequest,
   Info,
   MessageSquare,
+  Plus,
   RefreshCw,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -24,33 +26,42 @@ import {
   type EvidenceRecord,
 } from './lib/task-demo.ts'
 
-export function TaskAnalysisDemo() {
-  // Demo task options for evaluators to test edge cases
-  const taskOptions = [
-    {
-      id: 'd0000000-0000-4000-8000-000000000001',
-      alias: 'FE-12',
-      label: 'Build profile settings component (Sameer · Assigned)',
-      endpoint: 'GET /users/id',
-      component: 'ProfileSettings',
-    },
-    {
-      id: 'FE-99',
-      alias: 'FE-99',
-      label: 'Explore catalog search caching (Unmapped Task · Edge Case)',
-      endpoint: 'GET /search/products',
-      component: 'SearchCatalog',
-    },
-    {
-      id: '__missing__',
-      alias: 'None',
-      label: '[Simulate Missing Task ID · Error 400]',
-      endpoint: '',
-      component: '',
-    },
-  ]
+export interface TaskOption {
+  id: string
+  alias: string
+  label: string
+  endpoint: string
+  component: string
+  isCustom?: boolean
+}
 
-  const [selectedTaskId, setSelectedTaskId] = useState<string>(taskOptions[0]!.id)
+const defaultTaskOptions: TaskOption[] = [
+  {
+    id: 'd0000000-0000-4000-8000-000000000001',
+    alias: 'FE-12',
+    label: 'Build profile settings component (Sameer · Assigned)',
+    endpoint: 'GET /users/id',
+    component: 'ProfileSettings',
+  },
+  {
+    id: 'FE-99',
+    alias: 'FE-99',
+    label: 'Explore catalog search caching (Unmapped Task · Edge Case)',
+    endpoint: 'GET /search/products',
+    component: 'SearchCatalog',
+  },
+  {
+    id: '__missing__',
+    alias: 'None',
+    label: '[Simulate Missing Task ID · Error 400]',
+    endpoint: '',
+    component: '',
+  },
+]
+
+export function TaskAnalysisDemo() {
+  const [tasks, setTasks] = useState<TaskOption[]>(defaultTaskOptions)
+  const [selectedTaskId, setSelectedTaskId] = useState<string>(defaultTaskOptions[0]!.id)
   const [impactData, setImpactData] = useState<DemoImpactResponse | null>(null)
   const [decisionsData, setDecisionsData] = useState<DemoDecisionsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -61,13 +72,28 @@ export function TaskAnalysisDemo() {
     'dec-link-2': 'Needs review',
   })
 
+  // Add Custom Task Modal State
+  const [isAddingTask, setIsAddingTask] = useState(false)
+  const [customTitle, setCustomTitle] = useState('')
+  const [customComponent, setCustomComponent] = useState('')
+  const [customEndpoint, setCustomEndpoint] = useState('GET /users/id')
+
   // Load demo data
   async function loadData(taskIdToLoad: string) {
     setIsLoading(true)
     try {
+      const activeTask = tasks.find((t) => t.id === taskIdToLoad)
       const param = taskIdToLoad === '__missing__' ? undefined : taskIdToLoad
+      const options = activeTask
+        ? {
+            endpoint: activeTask.endpoint,
+            taskTitle: activeTask.label,
+            component: activeTask.component,
+          }
+        : undefined
+
       const [impact, decisions] = await Promise.all([
-        fetchDemoImpact(param),
+        fetchDemoImpact(param, options),
         fetchDemoDecisions(),
       ])
       setImpactData(impact)
@@ -81,7 +107,39 @@ export function TaskAnalysisDemo() {
 
   useEffect(() => {
     loadData(selectedTaskId)
-  }, [selectedTaskId])
+  }, [selectedTaskId, tasks])
+
+  const handleCreateTask = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!customTitle.trim() || !customEndpoint.trim()) return
+
+    const newId = `custom-task-${Date.now()}`
+    const component = customComponent.trim() || 'CustomComponent'
+    const newTask: TaskOption = {
+      id: newId,
+      alias: `FE-CUSTOM`,
+      label: `${customTitle.trim()} (${component} · Custom)`,
+      endpoint: customEndpoint.trim(),
+      component,
+      isCustom: true,
+    }
+
+    setTasks((prev) => [newTask, ...prev])
+    setSelectedTaskId(newId)
+    setIsAddingTask(false)
+    setCustomTitle('')
+    setCustomComponent('')
+  }
+
+  const handleResetToDefault = () => {
+    setTasks(defaultTaskOptions)
+    setSelectedTaskId(defaultTaskOptions[0]!.id)
+    setReviewStates({
+      'dec-link-1': 'Needs review',
+      'dec-link-2': 'Needs review',
+    })
+    setCheckedActions({})
+  }
 
   const toggleAction = (action: string) => {
     setCheckedActions((prev) => ({ ...prev, [action]: !prev[action] }))
@@ -91,7 +149,7 @@ export function TaskAnalysisDemo() {
     setReviewStates((prev) => ({ ...prev, [decisionId]: status }))
   }
 
-  const currentTask = taskOptions.find((t) => t.id === selectedTaskId)
+  const currentTask = tasks.find((t) => t.id === selectedTaskId)
 
   return (
     <section className="insync-demo-container" aria-labelledby="asn04-demo-title">
@@ -144,7 +202,7 @@ export function TaskAnalysisDemo() {
               onChange={(e) => setSelectedTaskId(e.target.value)}
               className="cyan-select"
             >
-              {taskOptions.map((opt) => (
+              {tasks.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.label}
                 </option>
@@ -157,8 +215,125 @@ export function TaskAnalysisDemo() {
             <Code2 size={14} className="text-cyan" />
             <span>Dependency: <strong>{currentTask?.endpoint || 'None'}</strong></span>
           </div>
+
+          <div className="selector-btn-actions">
+            <button
+              type="button"
+              className="cyan-btn-secondary"
+              onClick={() => setIsAddingTask(true)}
+              title="Add a custom task to test dynamic dependency mapping"
+            >
+              <Plus size={14} />
+              Add Task
+            </button>
+            <button
+              type="button"
+              className="btn-ghost-cyan"
+              onClick={handleResetToDefault}
+              title="Reset station to Sameer's default profile task"
+            >
+              <RotateCcw size={13} />
+              Reset
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* 2.5 Add Custom Task Modal (Peer Reviewer Input) */}
+      {isAddingTask && (
+        <div className="evidence-dialog-backdrop" onClick={() => setIsAddingTask(false)}>
+          <div
+            className="evidence-dialog-card add-task-card"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="dialog-header">
+              <div className="dialog-title-group">
+                <span className="dialog-source-tag">Feature F2 · Interactive Input</span>
+                <h4>Map a New Frontend Task</h4>
+              </div>
+              <button
+                type="button"
+                className="dialog-close-btn"
+                onClick={() => setIsAddingTask(false)}
+                aria-label="Close dialog"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTask} className="custom-task-form">
+              <div className="form-group">
+                <label htmlFor="custom-task-title">Task Title</label>
+                <input
+                  id="custom-task-title"
+                  type="text"
+                  className="cyan-input"
+                  placeholder="e.g. Build User Avatar Card"
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="custom-task-comp">Component Name</label>
+                <input
+                  id="custom-task-comp"
+                  type="text"
+                  className="cyan-input"
+                  placeholder="e.g. UserAvatar"
+                  value={customComponent}
+                  onChange={(e) => setCustomComponent(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="custom-task-endpoint">Backend API Dependency</label>
+                <div className="quick-endpoint-chips">
+                  {['GET /users/id', 'GET /billing/invoices', 'GET /search/products'].map((ep) => (
+                    <button
+                      key={ep}
+                      type="button"
+                      className={`endpoint-preset-btn ${customEndpoint === ep ? 'preset-active' : ''}`}
+                      onClick={() => setCustomEndpoint(ep)}
+                    >
+                      {ep}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  id="custom-task-endpoint"
+                  type="text"
+                  className="cyan-input mt-2"
+                  placeholder="e.g. GET /users/id"
+                  value={customEndpoint}
+                  onChange={(e) => setCustomEndpoint(e.target.value)}
+                  required
+                />
+                <span className="form-hint">
+                  Tip: Mapping to <code>GET /users/id</code> dynamically triggers PR #18 breaking impact analysis! Any other endpoint tests graceful uncertainty.
+                </span>
+              </div>
+
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-ghost-cyan"
+                  onClick={() => setIsAddingTask(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="cyan-btn-primary">
+                  Analyze This Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 3. Missing Task ID Error State (400 Bad Request Edge Case) */}
       {impactData?.error && (

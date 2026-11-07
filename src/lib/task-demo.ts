@@ -62,8 +62,18 @@ export interface DemoDecisionsResponse {
 }
 
 // Fetch F3 Task Impact Explanation
-export async function fetchDemoImpact(taskId?: string): Promise<DemoImpactResponse> {
-  const url = taskId ? `/api/demo/impact?taskId=${encodeURIComponent(taskId)}` : '/api/demo/impact'
+export async function fetchDemoImpact(
+  taskId?: string,
+  options?: { endpoint?: string; taskTitle?: string; component?: string },
+): Promise<DemoImpactResponse> {
+  const params = new URLSearchParams()
+  if (taskId) params.set('taskId', taskId)
+  if (options?.endpoint) params.set('endpoint', options.endpoint)
+  if (options?.taskTitle) params.set('taskTitle', options.taskTitle)
+  if (options?.component) params.set('component', options.component)
+
+  const queryString = params.toString()
+  const url = queryString ? `/api/demo/impact?${queryString}` : '/api/demo/impact'
   const res = await fetch(url)
   const data = await res.json()
   if (!res.ok) {
