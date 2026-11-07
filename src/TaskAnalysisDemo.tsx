@@ -1,17 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import type { explainImpact, suggestDecisionLink } from '../server/analysis/service.ts'
+import { loadTaskCatchUp, type Evidence } from './lib/task-demo.ts'
 
-type Evidence = { id: string; title: string; body: string }
-type Impact = { analysis: Awaited<ReturnType<typeof explainImpact>>; evidence: Evidence[] }
-type DecisionLinks = { analyses: Awaited<ReturnType<typeof suggestDecisionLink>>[]; evidence: Evidence[] }
-
-async function loadSample<T>(path: string): Promise<T> {
-  const response = await fetch(`/api/demo/analysis/profile/${path}`)
-  if (!response.ok) throw new Error('Sample analysis is unavailable.')
-  return response.json() as Promise<T>
-}
-
-function ReviewCard({ title, evidence, children }: { title: string; evidence: Evidence[]; children: ReactNode }) {
+function ReviewCard({ title, evidence, children }: { title: string; evidence: Evidence[]; children?: ReactNode }) {
   const [review, setReview] = useState('Needs review')
   return (
     <article className="insight-card task-demo-card">
@@ -38,19 +28,20 @@ function ReviewCard({ title, evidence, children }: { title: string; evidence: Ev
   )
 }
 
+type Updates = Awaited<ReturnType<typeof loadTaskCatchUp>>
+
 export function TaskAnalysisDemo() {
-  const [task, setTask] = useState('')
-  const [impact, setImpact] = useState<Impact | null>(null)
-  const [links, setLinks] = useState<DecisionLinks | null>(null)
+  const [filter, setFilter] = useState('')
+  const [updates, setUpdates] = useState<Updates | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
 
-  async function runSample(path: 'impact' | 'decision-links') {
+  async function runCatchUp() {
     setBusy(true)
     setError(false)
     try {
-      if (path === 'impact') setImpact(await loadSample<Impact>(path))
-      else setLinks(await loadSample<DecisionLinks>(path))
+      setUpdates(await loadTaskCatchUp())
+      setFilter('')
     } catch {
       setError(true)
     } finally {
@@ -58,78 +49,92 @@ export function TaskAnalysisDemo() {
     }
   }
 
-  function reset(nextTask = '') {
-    setTask(nextTask)
-    setImpact(null)
-    setLinks(null)
+  function reset() {
+    setUpdates(null)
+    setFilter('')
     setError(false)
   }
 
-  const impactResult = impact?.analysis.result
+  const tasks = new Map(updates?.map(({ task }) => [task.id, task.name]))
+  const visibleCount = updates?.filter(({ task }) => !filter || task.id === filter).length
 
   return (
     <section className="catchup-controls task-demo" aria-labelledby="task-demo-title">
       <div className="controls-heading">
         <div>
-          <h2 id="task-demo-title">Try the two sample interactions</h2>
-          <p>Start with your assigned frontend task. This demo uses scripted Slack and GitHub samples.</p>
+          <h2 id="task-demo-title">Catch up on your assigned work</h2>
+          <p>See GitHub changes that may affect your tasks and the related Slack discussions.</p>
+          <p><strong>Scripted sample</strong> · Uses predefined tasks and sample records.</p>
         </div>
       </div>
       <div className="task-demo-actions">
-        <label htmlFor="task-demo-select">Assigned task</label>
-        <select id="task-demo-select" value={task} disabled={busy} onChange={(event) => reset(event.target.value)}>
-          <option value="">Choose a task</option>
-          <option value="FE-12">Profile Settings</option>
-        </select>
-        <button type="button" className="filter-button" disabled={busy || !task} onClick={() => reset()}>Reset demo</button>
+        <button type="button" className="primary-button" disabled={busy} onClick={runCatchUp}>
+          {busy ? 'Preparing catch-up…' : 'Catch Me Up'}
+        </button>
+        {updates && <button type="button" className="filter-button" disabled={busy} onClick={reset}>Reset demo</button>}
       </div>
+      {busy && <p role="status">Checking sample changes against your assigned tasks…</p>}
+      {error && <p className="error-message" role="alert">Could not load the sample catch-up. Check that the local API is running and try again.</p>}
 
-      {task && (
-        <>
-          <p>Profile Settings reads <code>user_name</code> from <code>GET /users/:id</code>.</p>
-          <article className="insight-card task-demo-card" aria-labelledby="task-demo-pr">
-            <div className="insight-card-header">
-              <h3 id="task-demo-pr">PR #18 · Add display_name to profile response</h3>
-              <span className="status-pill">Open</span>
-            </div>
-            <p>Relevant GitHub sample</p>
-            <p>The proposed API response adds <code>display_name</code> and keeps <code>user_name</code>.</p>
-          </article>
+      {updates && (
+        <section className="task-demo-interaction" aria-labelledby="task-demo-updates">
+          <h3 id="task-demo-updates">Prioritized updates</h3>
+          <div className="task-demo-actions">
+            <label htmlFor="task-demo-filter">Filter by task</label>
+            <select id="task-demo-filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
+              <option value="">All my tasks</option>
+              {[...tasks].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <p role="status">{visibleCount === 0 ? 'No relevant updates for this view.' : `${visibleCount} task-related ${visibleCount === 1 ? 'update' : 'updates'}`}</p>
+          {updates.map(({ prNumber, title, lifecycle, task, change, priorityReason, impact, links }) => {
+            const result = impact.analysis.result
+            const discussions = links.analyses.flatMap(({ result }) => result.status === 'suggested'
+              ? links.evidence.filter((item) => item.title.startsWith('Slack sample · ') && result.suggestion.evidenceIds.includes(item.id))
+              : [])
+            return (
+              <article className="insight-card task-demo-card" key={prNumber} hidden={Boolean(filter && task.id !== filter)} aria-labelledby={`task-demo-pr-${prNumber}`}>
+                <div className="insight-card-header">
+                  <h3 id={`task-demo-pr-${prNumber}`}>PR #{prNumber} · {title}</h3>
+                  <span className="status-pill">{lifecycle === 'open' ? 'Open' : 'Draft'}</span>
+                </div>
+                <p><strong>Assigned task.</strong> {task.name}</p>
+                <p>{change}</p>
+                <p><strong>Why it’s prioritized.</strong> {priorityReason}</p>
+                {result.status === 'suggested' ? (
+                  <>
+                    <p><strong>Task impact.</strong> {result.suggestion.summary}</p>
+                    <p><strong>Next action.</strong> {result.suggestion.nextAction}</p>
+                  </>
+                ) : <p>Task impact is uncertain.</p>}
+                {discussions.length > 0 && (
+                  <p><strong>Related Slack.</strong> {discussions.map(({ title }) => title.replace('Slack sample · ', '')).join(' · ')}</p>
+                )}
 
-          {busy && <p role="status">Preparing sample analysis…</p>}
-          {error && <p className="error-message" role="alert">Could not load the sample analysis. Check that the local API is running and try again.</p>}
+                <details className="task-demo-interaction">
+                  <summary><strong>1. Task impact and GitHub evidence</strong></summary>
+                  <p>{task.name} uses <code>{task.endpoint}</code>.</p>
+                  {result.status === 'suggested' ? (
+                    <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))} />
+                  ) : <p>Impact uncertain. Inspect the available sample evidence before acting.</p>}
+                </details>
 
-          <section className="task-demo-interaction" aria-labelledby="task-demo-impact">
-            <h3 id="task-demo-impact">1. How does this change affect my task?</h3>
-            <button type="button" className="primary-button" disabled={busy} onClick={() => runSample('impact')}>
-              Explain impact on Profile Settings
-            </button>
-            {impact && impactResult?.status === 'suggested' && (
-              <ReviewCard title="PR impact suggestion" evidence={impact.evidence.filter((item) => impactResult.suggestion.evidenceIds.includes(item.id))}>
-                <p>{impactResult.suggestion.summary}</p>
-                <p><strong>Next action.</strong> {impactResult.suggestion.nextAction}</p>
-              </ReviewCard>
-            )}
-            {impact && impactResult?.status !== 'suggested' && <p role="status">Impact uncertain. Inspect the sample PR before acting.</p>}
-          </section>
-
-          <section className="task-demo-interaction" aria-labelledby="task-demo-decisions">
-            <h3 id="task-demo-decisions">2. What did the team discuss about this change?</h3>
-            <button type="button" className="filter-button" disabled={busy} onClick={() => runSample('decision-links')}>
-              Show related Slack discussions
-            </button>
-            {links?.analyses.map(({ decisionStatus, result }) => {
-              if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
-              const title = decisionStatus === 'confirmed' ? 'Slack decision link' : 'Possible Slack discussion link'
-              return (
-                <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
-                  <p>Slack decision status · {decisionStatus}</p>
-                  <p>{result.suggestion.summary}</p>
-                </ReviewCard>
-              )
-            })}
-          </section>
-        </>
+                <details className="task-demo-interaction">
+                  <summary><strong>2. Related Slack discussions and decisions</strong></summary>
+                  {links.analyses.map(({ decisionStatus, result }) => {
+                    if (result.status !== 'suggested') return <p key={decisionStatus}>No supported Slack link for this sample.</p>
+                    const title = decisionStatus === 'confirmed' ? 'Confirmed Slack decision' : 'Unresolved Slack discussion'
+                    return (
+                      <ReviewCard key={decisionStatus} title={title} evidence={links.evidence.filter((item) => result.suggestion.evidenceIds.includes(item.id))}>
+                        <p>{result.suggestion.summary}</p>
+                      </ReviewCard>
+                    )
+                  })}
+                </details>
+              </article>
+            )
+          })}
+        </section>
       )}
     </section>
   )
