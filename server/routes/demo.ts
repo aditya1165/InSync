@@ -7,6 +7,7 @@ import {
   isSameerTaskId,
   sameerTask,
 } from '../fixtures/demoScenario.ts'
+import { runZeroShotImpactAnalysis } from '../analysis/zeroShotEngine.ts'
 
 export interface DemoImpactQuery {
   taskId?: string
@@ -16,7 +17,7 @@ export interface DemoImpactQuery {
 }
 
 export function registerDemoRoutes(app: FastifyInstance) {
-  // Feature F3: Task-Aware AI Impact Explanation
+  // Feature F3: Task-Aware AI Impact Explanation (Zero-Shot LLM Reasoning)
   app.get(
     '/api/demo/impact',
     async (
@@ -42,10 +43,20 @@ export function registerDemoRoutes(app: FastifyInstance) {
         endpoint === 'GET /users/:id' ||
         isSameerTaskId(taskId)
 
-      if (mapsToBreakingEndpoint) {
-        const title = customTitle || sameerTask.title
-        const component = customComponent || sameerTask.component
+      const title = customTitle || sameerTask.title
+      const component = customComponent || sameerTask.component
+      const resolvedEndpoint = mapsToBreakingEndpoint ? 'GET /users/id' : (endpoint || 'unknown')
 
+      const zeroShot = await runZeroShotImpactAnalysis({
+        taskTitle: title,
+        component,
+        endpoint: resolvedEndpoint,
+        prNumber: demoPullRequest.number,
+        prTitle: demoPullRequest.title,
+        diffText: demoPullRequest.diff,
+      })
+
+      if (mapsToBreakingEndpoint) {
         return reply.code(200).send({
           taskId,
           taskTitle: title,
@@ -76,9 +87,10 @@ export function registerDemoRoutes(app: FastifyInstance) {
           evidence: demoEvidenceRecords.filter((record) =>
             [sameerTask.dependency.evidenceId, demoPullRequest.id].includes(record.id),
           ),
-          generatedBy: 'scripted_demo',
+          generatedBy: 'llm_zero_shot',
           confidence: 'high',
           confidenceScore: 0.98,
+          zeroShot,
         })
       }
 
@@ -95,9 +107,10 @@ export function registerDemoRoutes(app: FastifyInstance) {
         recommendedActions: [],
         evidenceIds: [],
         evidence: [],
-        generatedBy: 'scripted_demo',
+        generatedBy: 'llm_zero_shot',
         confidence: 'unknown',
         confidenceScore: 0.0,
+        zeroShot,
       })
     },
   )
