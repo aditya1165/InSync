@@ -189,7 +189,7 @@ export function TaskAnalysisDemo() {
                 Sameer <span className="user-role-tag">Research Scientist</span>
               </div>
               <div className="demo-user-sub">
-                Intelligent User Interactions · USC CSCI 599 Station Demo
+                Context-Aware Developer Intelligence Platform
               </div>
             </div>
           </div>
@@ -646,34 +646,6 @@ export function TaskAnalysisDemo() {
         </div>
       )}
 
-      {/* 6.5 HCI Theoretical Framework Mapping (USC CSCI 599 Research Reference) */}
-      <details className="hci-framework-drawer">
-        <summary>
-          <Sparkles size={14} className="text-cyan" />
-          <span>HCI Research Framework & Evaluation Mapping (Amershi et al. & Bansal et al.)</span>
-          <ChevronRight size={13} className="drawer-arrow" />
-        </summary>
-        <div className="hci-drawer-content">
-          <div className="hci-principle-card">
-            <strong>G2 / G11 · Epistemic Grounding vs False Precision</strong>
-            <p>
-              Rather than misleading developers with arbitrary numerical probabilities (e.g. 98%), InSync provides qualitative epistemic states backed by direct diff ast-line attribution.
-            </p>
-          </div>
-          <div className="hci-principle-card">
-            <strong>Automation Bias Mitigation (Cognitive Forcing Function)</strong>
-            <p>
-              The Planted Trap in Thread 2 is visually quarantined with an amber caution shield, forcing the developer to critically evaluate proposals before blindly accepting.
-            </p>
-          </div>
-          <div className="hci-principle-card">
-            <strong>G9 · Direct Manipulation & Human Agency</strong>
-            <p>
-              AI results remain suggestions. Developers retain final authority via tactile F5 human-in-the-loop controls (Confirm, Not Relevant, Remind Later, Undo).
-            </p>
-          </div>
-        </div>
-      </details>
 
       {/* 7. Modal / Slide-out for Inspecting Source Evidence */}
       {selectedEvidence && (
