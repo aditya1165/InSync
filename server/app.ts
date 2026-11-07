@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import { filterActivities, type Activity, type ActivityProvider, type ActivityResponse, type ActivitySource, type SourceStatus } from '../src/lib/catchup.ts'
 import type { TimeWindow } from '../src/lib/time.ts'
 import { registerAnalysisDemo } from './analysis/demo-routes.ts'
+import { registerDemoRoutes } from './routes/demo.ts'
 
 export interface AppProviders {
   github?: ActivityProvider
@@ -15,6 +16,7 @@ function publicError(error: unknown): string {
 export function createApp(providers: AppProviders) {
   const app = Fastify({ logger: false })
   registerAnalysisDemo(app)
+  registerDemoRoutes(app)
 
   app.get('/api/health', async () => ({
     status: 'ok',
