@@ -1,173 +1,34 @@
-# InSync: Context-Aware Developer Intelligence Platform
+# InSync
 
-> **Demo context:** Example assignments and records for one user; Jira, Slack, and GitHub items shown in the task view are samples.
-> **Appearance:** Light by default, with a saved Dark option at the bottom of the sidebar.
-> **Core philosophy:** Suggestions stay inspectable and never edit tasks or code. The task view uses scripted sample analysis; live inference and source integration remain in progress.
+InSync is a task-aware collaboration prototype built with React, TypeScript, Vite and Fastify. It includes three views and a saved Light/Dark theme:
 
----
-
-## 📌 Executive Summary & Architecture
-
-**InSync** is an intelligent developer coordination platform designed to bridge the cognitive gap between incoming code changes (GitHub Pull Requests) and asynchronous team discussions (Slack) relative to an engineer's **assigned tasks and API dependencies**.
-
-### Key Architectural Layers
-
-1. **Frontend App Shell (`src/`):** React 19 + TypeScript + Vite, with **My work** and **Team activity** views and Light/Dark palettes. Contrast has not been formally audited.
-2. **Fastify / Node API Backend (`server/`):** Ephemeral aggregation layer managing GitHub/Slack connectors, zero-shot LLM reasoning, and demo endpoints (`/api/demo/impact`, `/api/demo/decisions`, `/api/activity`, `/api/health`).
-3. **Zero-Shot LLM Reasoning Engine (`server/analysis/zeroShotEngine.ts`):** Formulates verifiable prompts to detect breaking AST diff changes against task dependencies and to correlate Slack discussions with GitHub PRs. Supports live OpenAI GPT-4o inference when configured, with deterministic offline fixtures.
-4. **Data Privacy & Zero Persistent Storage Model:** Supabase Postgres schema (`supabase/migrations/`) stores workspace memberships, task mapping definitions, and sync checkpoints. **No Slack message bodies or GitHub diff contents are ever persisted to Postgres.**
-
-```mermaid
-graph TD
-    subgraph External Sources
-        GH["GitHub Pull Requests & Diffs"]
-        SL["Slack Team Discussions"]
-    end
-
-    subgraph InSync Backend ["Fastify API :3001"]
-        ING["Source Ingestion & Time-Windowing"]
-        ZS["Zero-Shot LLM Reasoning Engine"]
-        DB[("Supabase Postgres (Zero Content Storage)")]
-    end
-
-    subgraph Frontend Client ["Vite React :5173"]
-        TS["Task Context: Sameer / FE-12"]
-        IMP["Diff Viewer & Zero-Shot Impact Card"]
-        DEC["Decision Alignment & Trap Quarantine"]
-        REV["Inspectable Source Evidence (F5 partial)"]
-    end
-
-    GH --> ING
-    SL --> ING
-    ING --> ZS
-    DB -.->|Task Mappings Only| TS
-    ZS --> IMP
-    ZS --> DEC
-    IMP --> REV
-    DEC --> REV
-```
-
----
-
-## 🚀 Key Functional Capabilities (F1 to F5)
-
-### F1: Activity Catch-Up & Summarization
-- The task demo starts with example Jira assignments. It loads sample analysis only after **Catch me up** is clicked.
-- **Team activity** contains the full labeled sample Slack/GitHub feed, with **Last 24 Hours**, **Previous Calendar Week**, and **Since Last Catch-Up** ranges.
-- Live team activity is unavailable until authentication can verify the user's ticket-board membership and permitted sources. `/api/activity` denies unscoped requests.
-- **My work** reads assigned tasks and API mappings from Supabase when a local demo identity is configured. Its separate **Sample demo** keeps the scripted PR/Slack walkthrough available.
-
-### F2: Task Context & Dependency Mapping
-- Two selectable example Jira-style task cards drive the sample analysis; they are not connected to Jira.
-- Technical mapping is available in evidence detail. Editing mappings in the visible page remains future work.
-
-### F3: Code Change Impact
-- Shows two labeled sample proposals for the profile task. PR #21 is a local UI fixture used to demonstrate multiple changes and files.
-- Displays a file-by-file diff and one suggested next step for the selected proposal. The task view does not claim these scripted suggestions are live AI output.
-
-### F4: Slack Context
-- Shows the source channel and distinguishes a **Team decision** about profile names from an **Open question** about email verification.
-- Both sample source records are inspectable. The proposed code change remains open.
-
-### F5: Evidence and User Controls
-- Source evidence remains inspectable and the app does not edit code or tasks.
-- Review controls were removed from this simplified task view because they only changed temporary page state. A meaningful, recoverable review workflow remains future work.
-
----
-
-## ⚙️ Environment Variables & API Setup
-
-Create a `.env` file in the repository root by copying the template:
+- **Pagination demo:** Leo's ProductList → cursor-pagination change → Slack decision-to-PR review. Uses real API evidence after an approved seed, or an explicitly labeled offline pagination sample.
+- **My work:** Supabase-backed assigned tasks and API mappings, plus the upstream scripted sample task walkthrough.
+- **Team activity:** Labeled sample Slack/GitHub activity with time ranges. Live `/api/activity` requests still require authenticated ticket-board/source grants.
 
 ```bash
-cp .env.example .env
-```
-
-| Variable | Required | Description | Example |
-| :--- | :---: | :--- | :--- |
-| `HOST` | No | API bind host (default: `127.0.0.1`) | `127.0.0.1` |
-| `PORT` | No | API bind port (default: `3001`) | `3001` |
-| `OPENAI_API_KEY` | Optional | Live zero-shot inference (GPT-4o). If omitted, deterministic offline reasoning fixtures are used. | `sk-proj-...` |
-| `GITHUB_REPOSITORY` | Optional | GitHub repository configured for future authorized live activity; configuration alone does not enable the feed. | `owner/repo` |
-| `GITHUB_TOKEN` | Optional | Read access token for private GitHub repositories. | `ghp_...` |
-| `SLACK_BOT_TOKEN` | Optional | Slack Bot User OAuth Token (`xoxb-...`). | `xoxb-...` |
-| `SLACK_CHANNELS` | Optional | Comma-delimited channel ID to name pairs. | `C0123:backend-api,C0456:team` |
-| `DATABASE_URL` | Optional | Supabase Postgres session pooler connection string. | `postgresql://postgres:...` |
-| `INSYNC_DEMO_USER_ID` | Local demo only | Existing Supabase Auth user ID whose assignments to show. | UUID |
-| `INSYNC_DEMO_WORKSPACE_ID` | Local demo only | Workspace containing that user's membership and tasks. | UUID |
-
----
-
-## 🛠️ Quickstart Guide
-
-### 1. Prerequisites
-- **Node.js:** v20.x or higher
-- **npm:** v10.x or higher
-
-### 2. Install Dependencies
-```bash
-npm install
-```
-
-### 3. Verify Supabase
-```bash
-npm run db:check
-```
-
-The project includes Supabase's public root CA at `certs/supabase-root-2021.crt` for verified TLS. The task tables are applied to the connected project, but no demo rows were inserted. To see real assignments in **My work**, create an Auth user, workspace membership, task, and optional API mappings in Supabase, then set the two `INSYNC_DEMO_*` IDs in `.env`. This local demo identity is disabled in production; real multi-user sign-in is still needed. Slack messages and GitHub diffs are not stored in these tables.
-
-### 4. Start Development Servers
-```bash
-# Concurrently starts Fastify API (:3001) and Vite frontend (:5173)
+npm ci
+cp -n .env.example .env
 npm run dev
 ```
-Open your browser to `http://localhost:5173`.
 
-### 5. Running Tests & Production Build
+Use Node 24. Open http://localhost:5173; the API runs on port 3001. The Pagination demo is the default view. Choose **Scripted pagination sample (offline)** for a demo without credentials. No Supabase or OpenAI key is required for this flow.
+
+For real-time **human-written Slack discussions**, follow [the Socket Mode setup and simulation guide](docs/SLACK_EVENTS_DEMO.md). This optional listener needs a server-side xapp app-level token in addition to the existing bot token.
+
+For real API-created Slack threads, Git commits, branches and a PR, follow **[the real-data setup and walkthrough](docs/REAL_DATA_DEMO.md)**. It includes token permissions, allowlists, dry-run/apply/verify/cleanup commands, recovery, manifest details and a 60–90-second demo script. External writes require explicit target confirmation. The simulator targets a separate demo repository and never merges a PR. Its live evidence route is restricted to the local loopback demo, not production or a public bind.
+
 ```bash
-# Run the automated test suite
+npm run demo:seed       # local dry-run; configure target/allowlists first
+npm run demo:validate   # read-only credential/target checks
+npm run demo:verify     # re-fetch artifacts recorded by an approved seed
+npm run demo:cleanup    # preview only
 npm test
-
-# Build production TypeScript & Vite client
 npm run build
 ```
 
----
+Pagination analysis uses deterministic contract rules, labeled `evidence_rules`, with links to the actual source records. **Why did this change?** keeps the source decision status separate from human confirmation/rejection/correction of an inferred relationship. Review is session-local. Remote failures are visible; sample fallback is explicit.
 
-## 🎨 UI/UX Design System: Pitch Black, Midnight Navy, Fluorescent Cyan
+For Supabase tasks, configure `DATABASE_URL` and the local-only `INSYNC_DEMO_USER_ID` / `INSYNC_DEMO_WORKSPACE_ID` with an existing Auth user, workspace membership, task and optional API mappings. Run `npm run db:check` to verify the schema. The repository includes Supabase's public root CA at `certs/supabase-root-2021.crt` for verified TLS. Local demo identity is disabled in production or when the API is not bound to `127.0.0.1`; real multi-user authentication remains necessary. Task assignments from Supabase do not yet drive live PR/Slack analysis. The upstream sample task view remains scripted and has no link-review controls; the Pagination demo supplies that review workflow.
 
-- **Base Canvas (`#05080F`):** Deep obsidian eliminates screen glare during long engineering sessions.
-- **Surface Elevation (`#080E1B` / `#0A1122` / `#0D162A`):** Structured midnight navy containers with subtle cyan borders (`rgba(56, 189, 248, 0.14)`).
-- **Fluorescent Cyan (`#00F2FE` / `#38BDF8`):** Directs visual attention to breaking changes and focus states with an ambient glow (**14.2:1 contrast ratio — WCAG 2.1 AAA Compliant**).
-- **Single-User Paradigm:** Purpose-built for **Sameer** (**Research Scientist**). No fake multiplayer bloat or 3D graph distraction.
-- **Epistemic Honesty:** No arbitrary `98%` confidence numbers; claims are backed by verifiable line-level citations from the PR diff.
-
----
-
-## 📂 Repository File Structure
-
-```
-InSync/
-├── server/
-│   ├── analysis/
-│   │   ├── zeroShotEngine.ts    # Zero-shot prompt builders and OpenAI integration
-│   │   └── service.ts           # AST & diff impact explainers
-│   ├── fixtures/
-│   │   └── demoScenario.ts      # Ground-truth PR #18 diff, Slack discussions & traps
-│   ├── routes/
-│   │   └── demo.ts              # /api/demo/impact and /api/demo/decisions routes
-│   ├── providers/
-│   │   ├── github.ts            # GitHub REST API activity connector
-│   │   └── slack.ts             # Slack Conversations API activity connector
-│   ├── app.ts                   # Fastify server bootstrap & time window validator
-│   └── index.ts                 # Server entry point (:3001)
-├── src/
-│   ├── TaskAnalysisDemo.tsx     # Primary personal developer station component
-│   ├── App.tsx                  # InSync main shell & catch-up views
-│   ├── styles.css               # Pitch Black, Midnight Navy, Fluorescent Cyan styles
-│   └── lib/                     # Time window calculation and catchup models
-├── supabase/
-│   ├── migrations/              # Zero-storage Postgres schema
-│   └── seed_sameer.ts           # Persona task mapping seed script
-└── README.md                    # Project documentation
-```
+Planned ASN03 features and current limitations are recorded in [PROJECT_SPEC](docs/PROJECT_SPEC.md) and [IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md). Keep credentials in the ignored server-side `.env`; private simulator journals belong in ignored `.demo/`. Slack messages and GitHub diffs are not persisted in Supabase.

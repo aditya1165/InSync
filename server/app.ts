@@ -1,12 +1,15 @@
 import Fastify from 'fastify'
 import type { FastifyRequest } from 'fastify'
+import { registerRealDemo } from './real-demo/routes.ts'
 import { filterActivities, type Activity, type ActivityProvider, type ActivityResponse, type ActivitySource, type SourceStatus } from '../src/lib/catchup.ts'
 import type { TimeWindow } from '../src/lib/time.ts'
 import { registerAnalysisDemo } from './analysis/demo-routes.ts'
 import { registerDemoRoutes } from './routes/demo.ts'
 import type { AssignedTask } from './db/tasks.ts'
+import type { SlackEventsRuntime } from './slack-events/runtime.ts'
 
 export interface AppProviders {
+  slackEvents?: SlackEventsRuntime
   github?: ActivityProvider
   slack?: ActivityProvider
   /** Resolve only after authenticating the user and checking their ticket-board source grants. */
@@ -27,6 +30,7 @@ function publicError(error: unknown): string {
 
 export function createApp(providers: AppProviders) {
   const app = Fastify({ logger: false })
+  registerRealDemo(app, process.env, fetch, providers.slackEvents)
   registerAnalysisDemo(app)
   registerDemoRoutes(app)
 

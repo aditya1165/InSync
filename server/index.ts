@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { SlackEventsRuntime } from './slack-events/runtime.ts'
 import { createApp } from './app.ts'
 import { loadConfig } from './config.ts'
 import { createGitHubProvider } from './providers/github.ts'
@@ -14,7 +15,9 @@ const localDemoIdentity = config.host === '127.0.0.1' && process.env.NODE_ENV !=
   ? { userId: demoUserId, workspaceId: demoWorkspaceId }
   : null
 
+const slackEvents = new SlackEventsRuntime()
 const app = createApp({
+  slackEvents,
   taskStore: db ? { listAssignedTasks: (userId, workspaceId) => listAssignedTasks(db, userId, workspaceId) } : undefined,
   // One-user local demo only. Production must resolve identity from verified Auth.
   resolveTaskIdentity: localDemoIdentity ? async () => localDemoIdentity : undefined,
@@ -29,10 +32,12 @@ const app = createApp({
     ? createSlackProvider({ token: config.slack.token, channels: config.slack.channels })
     : undefined,
 })
+app.addHook('onClose', async () => { await slackEvents.stop() })
 if (db) app.addHook('onClose', async () => { await db.end() })
 
 try {
   await app.listen({ host: config.host, port: config.port })
+  void slackEvents.start()
   console.log(`InSync API listening on http://${config.host}:${config.port}`)
 } catch (error) {
   app.log.error(error)

@@ -6,3 +6,6 @@ dist/
 .env.*
 !.env.example
 dist-server/
+
+# Private simulator journals, locks, and local review metadata
+.demo/

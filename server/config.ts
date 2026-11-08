@@ -30,7 +30,7 @@ export function parseSlackChannels(value: string | undefined): SlackChannel[] {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
-  const repository = env.GITHUB_REPOSITORY?.trim() || null
+  const repository = env.GITHUB_REPOSITORY?.trim() || (env.GITHUB_OWNER && env.GITHUB_REPO ? `${env.GITHUB_OWNER}/${env.GITHUB_REPO}` : null)
   if (repository && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new Error('GITHUB_REPOSITORY must be in owner/repo format.')
   }
@@ -50,7 +50,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     },
     slack: {
       token: env.SLACK_BOT_TOKEN?.trim() || null,
-      channels: parseSlackChannels(env.SLACK_CHANNELS),
+      channels: parseSlackChannels(env.SLACK_CHANNELS || (env.SLACK_CHANNEL_ID ? `${env.SLACK_CHANNEL_ID}:demo-pagination` : '')),
     },
   }
 }

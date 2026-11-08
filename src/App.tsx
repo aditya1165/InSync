@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { TaskAnalysisDemo } from './TaskAnalysisDemo.tsx'
+import { PaginationDemo } from './PaginationDemo.tsx'
 import {
   ArrowRight,
   CalendarDays,
@@ -333,7 +334,7 @@ export default function App() {
     catch { return 'light' }
   })
   const [selectedRange, setSelectedRange] = useState<RangeChoice>('last24Hours')
-  const [activeView, setActiveView] = useState<'my-work' | 'team-activity'>('my-work')
+  const [activeView, setActiveView] = useState<'pagination-demo' | 'my-work' | 'team-activity'>('pagination-demo')
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [result, setResult] = useState<CatchUpResult | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
@@ -372,6 +373,7 @@ export default function App() {
         <div className="brand"><span className="brand-mark"><span /></span><span>InSync</span></div>
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="sidebar-nav" aria-label="Workspace views">
+          <button type="button" className={`sidebar-nav-button ${activeView === 'pagination-demo' ? 'sidebar-active' : ''}`} aria-current={activeView === 'pagination-demo' ? 'page' : undefined} onClick={() => setActiveView('pagination-demo')}><Sparkles size={18} /><span>Pagination demo</span><ChevronRight size={16} /></button>
           <button type="button" className={`sidebar-nav-button ${activeView === 'my-work' ? 'sidebar-active' : ''}`} aria-current={activeView === 'my-work' ? 'page' : undefined} onClick={() => setActiveView('my-work')}><Ticket size={18} /><span>My work</span><ChevronRight size={16} /></button>
           <button type="button" className={`sidebar-nav-button ${activeView === 'team-activity' ? 'sidebar-active' : ''}`} aria-current={activeView === 'team-activity' ? 'page' : undefined} onClick={() => setActiveView('team-activity')}><MessageSquareText size={18} /><span>Team activity</span><ChevronRight size={16} /></button>
         </nav>
@@ -387,9 +389,16 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        <header className="topbar"><span>Workspace <ChevronRight size={14} /> {activeView === 'my-work' ? 'My work' : 'Team activity'}</span><span className="topbar-mode"><span /> Sample mode</span></header>
+        <header className="topbar"><span>Workspace <ChevronRight size={14} /> {activeView === 'pagination-demo' ? 'Pagination demo' : activeView === 'my-work' ? 'My work' : 'Team activity'}</span><span className="topbar-mode"><span /> {activeView === 'pagination-demo' ? 'Staged scenario' : activeView === 'my-work' ? 'Task workspace' : 'Sample activity'}</span></header>
         <div className="content-wrap">
-          {activeView === 'my-work' ? <>
+          {activeView === 'pagination-demo' ? <>
+            <section className="hero">
+              <span className="hero-kicker"><Sparkles size={15} /> BACK ON TRACK</span>
+              <h1>Catch up on what<br /><em>affects ProductList.</em></h1>
+              <p>Trace the pagination API change from Slack discussion to its pull request and frontend impact.</p>
+            </section>
+            <PaginationDemo />
+          </> : activeView === 'my-work' ? <>
             <section className="hero">
               <span className="hero-kicker"><Sparkles size={15} /> YOUR WORK</span>
               <h1>See what may affect<br /><em>your work.</em></h1>
@@ -453,7 +462,7 @@ export default function App() {
             )}
           </div>
           </>}
-          <footer className="page-footer">InSync demo · Sample records are illustrative.</footer>
+          <footer className="page-footer">InSync · Sources and generation modes are labeled in each view.</footer>
         </div>
       </main>
       {selectedActivity && <SourceDetail activity={selectedActivity} mode="demo" onClose={() => setSelectedActivity(null)} />}

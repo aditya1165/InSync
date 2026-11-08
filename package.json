@@ -11,9 +11,14 @@
     "start:api": "node dist-server/server/index.js",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview",
-    "test": "node --test src/lib/*.test.ts server/*.test.ts server/providers/*.test.ts server/db/*.test.ts"
+    "test": "node --test src/lib/*.test.ts server/*.test.ts server/providers/*.test.ts server/db/*.test.ts",
+    "demo:seed": "tsx server/real-demo/cli.ts seed",
+    "demo:validate": "tsx server/real-demo/cli.ts validate",
+    "demo:verify": "tsx server/real-demo/cli.ts verify",
+    "demo:cleanup": "tsx server/real-demo/cli.ts cleanup"
   },
   "dependencies": {
+    "@slack/socket-mode": "^3.1.1",
     "dotenv": "^18.0.9",
     "fastify": "^5.12.8",
     "lucide-react": "1.59.0",
