@@ -14,12 +14,16 @@ try {
     sources: string | null
     access: string | null
     catchups: string | null
+    tasks: string | null
+    mappings: string | null
   }>(
     `select to_regclass('public.profiles')::text as profiles,
             to_regclass('public.workspace_memberships')::text as memberships,
             to_regclass('public.source_scopes')::text as sources,
             to_regclass('public.user_source_access')::text as access,
-            to_regclass('public.catchup_runs')::text as catchups`,
+            to_regclass('public.catchup_runs')::text as catchups,
+            to_regclass('public.tasks')::text as tasks,
+            to_regclass('public.task_api_dependencies')::text as mappings`,
   )
   const row = result.rows[0]
   if (!row || Object.values(row).some((value) => value === null)) {

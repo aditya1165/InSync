@@ -1,694 +1,304 @@
-import { useState, useEffect } from 'react'
-import {
-  AlertTriangle,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Code2,
-  GitPullRequest,
-  Info,
-  MessageSquare,
-  Plus,
-  RefreshCw,
-  RotateCcw,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  User,
-} from 'lucide-react'
-import {
-  fetchDemoImpact,
-  fetchDemoDecisions,
-  type DemoImpactResponse,
-  type DemoDecisionsResponse,
-  type DecisionItem,
-  type EvidenceRecord,
-} from './lib/task-demo.ts'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ArrowRight, ChevronRight, FileCode2, GitPullRequest, Info, MessageSquare, RefreshCw, Ticket } from 'lucide-react'
+import { diffLineKind, exampleChangesForImpact, type ChangeFile } from './lib/change-demo.ts'
+import { fetchDemoDecisions, fetchDemoImpact, type DemoDecisionsResponse, type DemoImpactResponse, type EvidenceRecord } from './lib/task-demo.ts'
+import { fetchAssignedTasks, type AssignedTask } from './lib/tasks.ts'
 
-export interface TaskOption {
+interface JiraTask {
   id: string
-  alias: string
-  label: string
+  key: string
+  title: string
+  description: string
   endpoint: string
   component: string
-  isCustom?: boolean
 }
 
-const defaultTaskOptions: TaskOption[] = [
+const exampleJiraTasks: JiraTask[] = [
   {
     id: 'd0000000-0000-4000-8000-000000000001',
-    alias: 'FE-12',
-    label: 'FE-12: Build profile settings component (Assigned to you)',
+    key: 'FE-12',
+    title: 'Profile settings',
+    description: 'Build the page where people update their profile.',
     endpoint: 'GET /users/id',
     component: 'ProfileSettings',
   },
   {
     id: 'FE-99',
-    alias: 'FE-99',
-    label: 'FE-99: Explore catalog search caching (No open breaking PRs)',
+    key: 'FE-99',
+    title: 'Catalog search',
+    description: 'Explore ways to make product search faster.',
     endpoint: 'GET /search/products',
     component: 'SearchCatalog',
   },
-  {
-    id: '__missing__',
-    alias: 'None',
-    label: 'None (Clear task selection)',
-    endpoint: '',
-    component: '',
-  },
 ]
 
-export function TaskAnalysisDemo() {
-  const [tasks, setTasks] = useState<TaskOption[]>(defaultTaskOptions)
-  const [selectedTaskId, setSelectedTaskId] = useState<string>(defaultTaskOptions[0]!.id)
+function ChangeDiff({ file }: { file: ChangeFile }) {
+  return (
+    <div className="change-diff">
+      <div className="change-diff-header"><FileCode2 size={16} /><strong>{file.path}</strong><span>File changes</span></div>
+      <pre aria-label={`Changes in ${file.path}`}><code>
+        {file.patch.split('\n').map((line, index) => (
+          <span className={`change-diff-line change-diff-line--${diffLineKind(line)}`} key={index}>{line || ' '}</span>
+        ))}
+      </code></pre>
+    </div>
+  )
+}
+
+function EvidenceDialog({ record, onClose }: { record: EvidenceRecord; onClose: () => void }) {
+  const isTask = record.source === 'task_mapping'
+  return (
+    <div className="evidence-dialog-backdrop" onMouseDown={onClose}>
+      <div className="evidence-dialog-card" role="dialog" aria-modal="true" aria-labelledby="example-source-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dialog-header">
+          <div className="dialog-title-group">
+            <span className="dialog-source-tag">{isTask ? 'Example Jira task detail' : `Sample ${record.source || 'source'}`}</span>
+            <h4 id="example-source-title">{isTask ? 'Why this may affect your work' : record.title}</h4>
+          </div>
+          <button type="button" className="dialog-close-btn" onClick={onClose} aria-label="Close source details">×</button>
+        </div>
+        {!isTask && record.location && <div className="dialog-location">{record.location}</div>}
+        <div className="dialog-body-pre"><pre>{isTask
+          ? 'The profile settings page currently uses the old name in the profile information. That is why this proposed change appears for this task.'
+          : record.body}</pre></div>
+        <div className="dialog-footer">
+          <span className="dialog-footnote"><Info size={14} /> Example record · For review only</span>
+          <button type="button" className="cyan-btn-secondary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SampleTaskAnalysis() {
+  const requestId = useRef(0)
+  const [selectedTaskId, setSelectedTaskId] = useState(exampleJiraTasks[0]!.id)
   const [impactData, setImpactData] = useState<DemoImpactResponse | null>(null)
   const [decisionsData, setDecisionsData] = useState<DemoDecisionsResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null)
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceRecord | null>(null)
-  const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
-  const [reviewStates, setReviewStates] = useState<Record<string, string>>({
-    'dec-link-1': 'Needs review',
-    'dec-link-2': 'Needs review',
-  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Add Custom Task Modal State
-  const [isAddingTask, setIsAddingTask] = useState(false)
-  const [customTitle, setCustomTitle] = useState('')
-  const [customComponent, setCustomComponent] = useState('')
-  const [customEndpoint, setCustomEndpoint] = useState('GET /users/id')
-  const [showPromptInspection, setShowPromptInspection] = useState(false)
-
-  // Escape key listener for accessible modal closing
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedEvidence(null)
-        setIsAddingTask(false)
-      }
-    }
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelectedEvidence(null) }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // Load demo data
-  async function loadData(taskIdToLoad: string) {
-    setIsLoading(true)
-    try {
-      const activeTask = tasks.find((t) => t.id === taskIdToLoad)
-      const param = taskIdToLoad === '__missing__' ? undefined : taskIdToLoad
-      const options = activeTask
-        ? {
-            endpoint: activeTask.endpoint,
-            taskTitle: activeTask.label,
-            component: activeTask.component,
-          }
-        : undefined
+  const selectedTask = exampleJiraTasks.find((task) => task.id === selectedTaskId)!
+  const changes = impactData ? exampleChangesForImpact(impactData) : []
+  const selectedChange = changes.find((change) => change.id === selectedChangeId) ?? changes[0]
+  const selectedFile = selectedChange?.files.find((file) => file.path === selectedFilePath) ?? selectedChange?.files[0]
+  const relatedDecisions = selectedChange?.id === impactData?.pr?.id ? decisionsData?.decisions ?? [] : []
 
+  function chooseTask(taskId: string) {
+    if (taskId === selectedTaskId) return
+    requestId.current += 1
+    setSelectedTaskId(taskId)
+    setImpactData(null)
+    setDecisionsData(null)
+    setSelectedChangeId(null)
+    setSelectedFilePath(null)
+    setLoadError(null)
+    setIsLoading(false)
+  }
+
+  async function runCatchUp() {
+    const currentRequest = ++requestId.current
+    setIsLoading(true)
+    setLoadError(null)
+    setImpactData(null)
+    setDecisionsData(null)
+    setSelectedChangeId(null)
+    setSelectedFilePath(null)
+    try {
       const [impact, decisions] = await Promise.all([
-        fetchDemoImpact(param, options),
+        fetchDemoImpact(selectedTask.id, {
+          endpoint: selectedTask.endpoint,
+          taskTitle: selectedTask.title,
+          component: selectedTask.component,
+        }),
         fetchDemoDecisions(),
       ])
+      if (requestId.current !== currentRequest) return
       setImpactData(impact)
       setDecisionsData(decisions)
     } catch {
-      // Handled via state
+      if (requestId.current === currentRequest) setLoadError('We could not load the example updates. Please try again.')
     } finally {
-      setIsLoading(false)
+      if (requestId.current === currentRequest) setIsLoading(false)
     }
   }
-
-  useEffect(() => {
-    loadData(selectedTaskId)
-  }, [selectedTaskId, tasks])
-
-  const handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!customTitle.trim() || !customEndpoint.trim()) return
-
-    const newId = `custom-task-${Date.now()}`
-    const component = customComponent.trim() || 'CustomComponent'
-    const newTask: TaskOption = {
-      id: newId,
-      alias: `FE-CUSTOM`,
-      label: `${customTitle.trim()} (${component} · Custom)`,
-      endpoint: customEndpoint.trim(),
-      component,
-      isCustom: true,
-    }
-
-    setTasks((prev) => [newTask, ...prev])
-    setSelectedTaskId(newId)
-    setIsAddingTask(false)
-    setCustomTitle('')
-    setCustomComponent('')
-  }
-
-  const handleResetToDefault = () => {
-    setTasks(defaultTaskOptions)
-    setSelectedTaskId(defaultTaskOptions[0]!.id)
-    setReviewStates({
-      'dec-link-1': 'Needs review',
-      'dec-link-2': 'Needs review',
-    })
-    setCheckedActions({})
-  }
-
-  const toggleAction = (action: string) => {
-    setCheckedActions((prev) => ({ ...prev, [action]: !prev[action] }))
-  }
-
-  const setDecisionReview = (decisionId: string, status: string) => {
-    setReviewStates((prev) => ({ ...prev, [decisionId]: status }))
-  }
-
-  const handleCardTilt = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left - rect.width / 2
-    const y = e.clientY - rect.top - rect.height / 2
-    e.currentTarget.style.transform = `perspective(1000px) rotateY(${x / 35}deg) rotateX(${-y / 35}deg) translateY(-2px)`
-  }
-
-  const handleCardReset = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.currentTarget.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(0)'
-  }
-
-  const currentTask = tasks.find((t) => t.id === selectedTaskId)
 
   return (
-    <section className="insync-demo-container" aria-labelledby="asn04-demo-title">
-      {/* 1. Header with Default User Context (Sameer) */}
-      <div className="demo-header-card">
-        <div className="demo-header-left">
-          <div className="demo-user-badge">
-            <span className="user-avatar-glow">
-              <User size={15} />
-            </span>
-            <div>
-              <div className="demo-user-name">
-                Sameer <span className="user-role-tag">Research Scientist</span>
-              </div>
-              <div className="demo-user-sub">
-                Context-Aware Developer Intelligence Platform
-              </div>
-            </div>
-          </div>
+    <section className="insync-demo-container" aria-label="Example Jira task catch-up">
+      <div className="demo-selector-card jira-task-picker">
+        <div className="selector-label-group">
+          <span className="selector-eyebrow"><Ticket size={15} /> SAMPLE JIRA ASSIGNMENTS</span>
+          <h2 className="selector-title">My tasks</h2>
+          <p className="selector-description">Choose what you’re working on, then catch up. These assignments are examples, not a live Jira connection.</p>
         </div>
-
-        <div className="demo-header-right">
-          <span className="status-indicator-pill">
-            <span className="indicator-dot glow-cyan" />
-            AI Impact Analysis · Zero-Shot Diff Grounded
-          </span>
-          <button
-            type="button"
-            className="cyan-btn-secondary"
-            onClick={() => loadData(selectedTaskId)}
-            disabled={isLoading}
-            aria-label="Refresh demo state"
-          >
-            <RefreshCw size={13} className={isLoading ? 'spin' : ''} />
-            {isLoading ? 'Re-analyzing…' : 'Run Catch-up'}
+        <div className="task-card-grid" role="group" aria-label="Choose a Jira task">
+          {exampleJiraTasks.map((task) => (
+            <button key={task.id} type="button" className={`task-choice-card ${selectedTaskId === task.id ? 'task-choice-card--selected' : ''}`} aria-pressed={selectedTaskId === task.id} onClick={() => chooseTask(task.id)}>
+              <span className="task-choice-top"><span>Jira · {task.key}</span><span>{selectedTaskId === task.id ? 'Selected' : 'Select'}</span></span>
+              <strong>{task.title}</strong>
+              <span className="task-choice-description">{task.description}</span>
+            </button>
+          ))}
+        </div>
+        <div className="jira-picker-footer">
+          <span>Updates appear after you click.</span>
+          <button type="button" className="cyan-btn-primary" disabled={isLoading} onClick={runCatchUp}>
+            {isLoading ? <RefreshCw className="spin" size={16} /> : <ArrowRight size={16} />}
+            {isLoading ? 'Loading updates…' : 'Catch me up'}
           </button>
         </div>
+        {loadError && <p className="error-message" role="alert"><AlertTriangle size={16} /> {loadError}</p>}
       </div>
 
-      {/* 2. Interactive Task Selector (Testing Normal vs Edge Cases) */}
-      <div className="demo-selector-card">
-        <div className="selector-label-group">
-          <span className="selector-eyebrow">ASSIGNED TASK CONTEXT</span>
-          <label htmlFor="task-select-input" className="selector-title">
-            Select Assigned Task
-          </label>
-        </div>
-
-        <div className="selector-controls">
-          <div className="select-wrapper">
-            <select
-              id="task-select-input"
-              value={selectedTaskId}
-              onChange={(e) => setSelectedTaskId(e.target.value)}
-              className="cyan-select"
-            >
-              {tasks.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={15} className="select-arrow" />
-          </div>
-
-          <div className="task-dependency-chip">
-            <Code2 size={14} className="text-cyan" />
-            <span>Dependency: <strong>{currentTask?.endpoint || 'None'}</strong></span>
-          </div>
-
-          <div className="selector-btn-actions">
-            <button
-              type="button"
-              className="cyan-btn-secondary"
-              onClick={() => setIsAddingTask(true)}
-              title="Add a custom task to test dynamic dependency mapping"
-            >
-              <Plus size={14} />
-              Add Task
-            </button>
-            <button
-              type="button"
-              className="btn-ghost-cyan"
-              onClick={handleResetToDefault}
-              title="Reset station to Sameer's default profile task"
-            >
-              <RotateCcw size={13} />
-              Reset
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2.5 Add Custom Task Modal (Peer Reviewer Input) */}
-      {isAddingTask && (
-        <div className="evidence-dialog-backdrop" onClick={() => setIsAddingTask(false)}>
-          <div
-            className="evidence-dialog-card add-task-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="dialog-header">
-              <div className="dialog-title-group">
-                <span className="dialog-source-tag">Feature F2 · Interactive Input</span>
-                <h4>Map a New Frontend Task</h4>
-              </div>
-              <button
-                type="button"
-                className="dialog-close-btn"
-                onClick={() => setIsAddingTask(false)}
-                aria-label="Close dialog"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTask} className="custom-task-form">
-              <div className="form-group">
-                <label htmlFor="custom-task-title">Task Title</label>
-                <input
-                  id="custom-task-title"
-                  type="text"
-                  className="cyan-input"
-                  placeholder="e.g. Build User Avatar Card"
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="custom-task-comp">Component Name</label>
-                <input
-                  id="custom-task-comp"
-                  type="text"
-                  className="cyan-input"
-                  placeholder="e.g. UserAvatar"
-                  value={customComponent}
-                  onChange={(e) => setCustomComponent(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="custom-task-endpoint">Backend API Dependency</label>
-                <div className="quick-endpoint-chips">
-                  {['GET /users/id', 'GET /billing/invoices', 'GET /search/products'].map((ep) => (
-                    <button
-                      key={ep}
-                      type="button"
-                      className={`endpoint-preset-btn ${customEndpoint === ep ? 'preset-active' : ''}`}
-                      onClick={() => setCustomEndpoint(ep)}
-                    >
-                      {ep}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  id="custom-task-endpoint"
-                  type="text"
-                  className="cyan-input mt-2"
-                  placeholder="e.g. GET /users/id"
-                  value={customEndpoint}
-                  onChange={(e) => setCustomEndpoint(e.target.value)}
-                  required
-                />
-                <span className="form-hint">
-                  Tip: Mapping to <code>GET /users/id</code> dynamically triggers PR #18 breaking impact analysis! Any other endpoint tests graceful uncertainty.
-                </span>
-              </div>
-
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn-ghost-cyan"
-                  onClick={() => setIsAddingTask(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="cyan-btn-primary">
-                  Analyze This Task
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-
-      {/* 3. Missing Task ID State */}
-      {impactData?.error && (
-        <div className="error-banner-card" role="alert">
-          <AlertTriangle size={20} className="text-red" />
-          <div>
-            <strong>No Task Selected</strong>
-            <p>{impactData.error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Unknown Task ID Fallback (Impact Uncertain State) */}
+      {impactData?.error && <div className="error-banner-card" role="alert"><AlertTriangle size={18} /><span>{impactData.error}</span></div>}
       {impactData && !impactData.error && impactData.impactUncertain && (
         <div className="uncertain-banner-card" role="status">
-          <ShieldAlert size={22} className="text-amber" />
-          <div>
-            <div className="banner-title">
-              <strong>No Breaking Changes Detected</strong>
-              <span className="badge-uncertain">Unaffected</span>
-            </div>
-            <p>{impactData.explanation}</p>
-            <p className="banner-footnote">
-              InSync verifies that your task's API dependency is unaffected by current open pull requests, avoiding false alerts.
-            </p>
-          </div>
+          <Info size={20} />
+          <div><strong>No linked change in this example</strong><p>We don’t have enough information to say whether {selectedTask.title.toLowerCase()} is affected.</p></div>
         </div>
       )}
 
-      {/* 5. Interaction 1: Feature F3 Task-Aware AI Impact Explanation */}
-      {impactData && !impactData.error && !impactData.impactUncertain && impactData.pr && (
+      {selectedChange && (
         <div className="demo-section-block">
           <div className="section-title-row">
-            <div className="title-with-badge">
-              <Sparkles size={17} className="text-cyan" />
-              <h3>Code Change Impact on Assigned Task</h3>
-            </div>
-            <span className="confidence-badge badge-high">
-              <ShieldCheck size={13} /> Verified Breaking Change · Grounded in PR #18 Diff
-            </span>
+            <div className="title-with-badge"><GitPullRequest size={18} className="text-cyan" /><h3>Changes for {selectedTask.title}</h3></div>
+            <span className="provenance-tag">{changes.length} sample proposals</span>
           </div>
-
-          <div className="impact-grid">
-            {/* Left: PR and Diff Viewer */}
-            <div
-              className="pr-diff-card card-3d"
-              onMouseMove={handleCardTilt}
-              onMouseLeave={handleCardReset}
-            >
-              <div className="card-topline">
-                <span className="pr-number-pill">
-                  <GitPullRequest size={13} /> PR #{impactData.pr.number}
-                </span>
-                <span className="pr-status-pill pr-status-open">Open</span>
-                <span className="pr-endpoint-pill">{impactData.pr.endpoint}</span>
-              </div>
-
-              <h4 className="pr-title">{impactData.pr.title}</h4>
-              <p className="pr-desc">{impactData.pr.description}</p>
-
-              {/* Code Diff Box */}
-              <div className="diff-viewer">
-                <div className="diff-viewer-header">
-                  <span>PATCH DIFF · api/users.json</span>
-                  <span>Unified Diff</span>
-                </div>
-                <pre className="diff-code">
-                  <code>
-                    <span className="diff-line diff-context">{'@@ -1,4 +1,4 @@'}</span>
-                    <span className="diff-line diff-context">{' {'}</span>
-                    <span className="diff-line diff-context">{'   "id": "123",'}</span>
-                    <span className="diff-line diff-del">{'-  "user_name": "string",'}</span>
-                    <span className="diff-line diff-add">{'+  "display_name": "string"'}</span>
-                    <span className="diff-line diff-context">{' }'}</span>
-                  </code>
-                </pre>
-              </div>
-
-              {/* Evidence Attribution */}
-              <div className="evidence-chips-row">
-                <span className="evidence-label">Inspectable Evidence:</span>
-                {impactData.evidence?.map((ev) => (
-                  <button
-                    key={ev.id}
-                    type="button"
-                    className="evidence-chip-btn"
-                    onClick={() => setSelectedEvidence(ev)}
-                  >
-                    <span>{ev.title}</span>
-                    <ChevronRight size={12} />
-                  </button>
+          <div className="change-workspace">
+            <nav className="change-list" aria-label="Proposed changes">
+              {changes.map((change) => (
+                <button key={change.id} type="button" className={`change-list-item ${selectedChange.id === change.id ? 'change-list-item--active' : ''}`} aria-current={selectedChange.id === change.id ? 'true' : undefined} onClick={() => { setSelectedChangeId(change.id); setSelectedFilePath(null) }}>
+                  <span className="change-list-meta">PR #{change.number} · {change.status === 'draft' ? 'Draft' : 'Open'}</span>
+                  <strong>{change.title}</strong>
+                  <span>{change.files.length} {change.files.length === 1 ? 'file' : 'files'} changed <ChevronRight size={14} /></span>
+                </button>
+              ))}
+            </nav>
+            <article className="change-detail">
+              <div className="change-detail-top"><span className="pr-number-pill"><GitPullRequest size={14} /> PR #{selectedChange.number}</span><span className="pr-status-pill pr-status-open">{selectedChange.status}</span><span className="sample-label">Example</span></div>
+              <h4>{selectedChange.title}</h4>
+              <p className="change-summary">{selectedChange.summary}</p>
+              <div className="change-next-step"><strong>Suggested next step</strong><p>{selectedChange.nextStep}</p></div>
+              <div className="change-files-heading"><strong>Files changed</strong><span>Choose a file to inspect the proposed edits.</span></div>
+              <div className="change-file-tabs" role="group" aria-label="Changed files">
+                {selectedChange.files.map((file) => (
+                  <button key={file.path} type="button" aria-pressed={selectedFile?.path === file.path} onClick={() => setSelectedFilePath(file.path)}><FileCode2 size={14} /> {file.path}</button>
                 ))}
               </div>
-            </div>
-
-            {/* Right: AI Explanation & Actionable Checklist */}
-            <div className="explanation-actions-card">
-              <div className="ai-explanation-box">
-                <div className="ai-box-header">
-                  <Sparkles size={15} className="text-cyan" />
-                  <strong>Zero-Shot AI Impact Explanation</strong>
-                  <span className="model-tag">{impactData.zeroShot?.model || 'gpt-4o-zero-shot'}</span>
-                </div>
-                <p className="ai-explanation-text">{impactData.explanation}</p>
-                <button
-                  type="button"
-                  className="btn-prompt-inspect"
-                  onClick={() => setShowPromptInspection(!showPromptInspection)}
-                >
-                  {showPromptInspection ? 'Hide Zero-Shot Prompt & AST Trace ▲' : 'Inspect Zero-Shot Prompt & AST Trace ▼'}
-                </button>
-                {showPromptInspection && (
-                  <div className="prompt-inspection-drawer">
-                    <div className="prompt-drawer-title">System Role:</div>
-                    <pre className="prompt-pre">{impactData.zeroShot?.systemPrompt || 'Expert software architect analyzing PR diffs against task dependencies.'}</pre>
-                    <div className="prompt-drawer-title mt-2">Zero-Shot User Prompt:</div>
-                    <pre className="prompt-pre">{impactData.zeroShot?.promptTemplate || 'Diff analysis against task component.'}</pre>
-                    <div className="prompt-drawer-title mt-2">AST Reasoning Trace:</div>
-                    <p className="prompt-trace-p">{impactData.zeroShot?.reasoningTrace || 'Unified diff AST parser detected field user_name replaced with display_name on GET /users/id.'}</p>
-                  </div>
-                )}
+              {selectedFile && <ChangeDiff file={selectedFile} />}
+              <div className="change-evidence" aria-label="Inspect example sources">
+                {selectedChange.evidence.map((record) => (
+                  <button key={record.id} type="button" onClick={() => setSelectedEvidence(record)}>{record.source === 'task_mapping' ? 'Why this may affect your work' : `View sample PR #${selectedChange.number}`} <ChevronRight size={14} /></button>
+                ))}
               </div>
-
-              <div className="recommended-actions-box">
-                <div className="actions-header">
-                  <CheckCircle2 size={15} className="text-cyan" />
-                  <strong>Recommended Next Actions</strong>
-                </div>
-                <ul className="actions-checklist">
-                  {impactData.recommendedActions.map((action) => (
-                    <li
-                      key={action}
-                      className={`action-item ${checkedActions[action] ? 'action-done' : ''}`}
-                      onClick={() => toggleAction(action)}
-                    >
-                      <span className="action-checkbox">
-                        {checkedActions[action] && <Check size={12} />}
-                      </span>
-                      <span>{action}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            </article>
           </div>
         </div>
       )}
 
-      {/* 6. Feature F4: Decision-to-PR Linking */}
-      {decisionsData && (
+      {relatedDecisions.length > 0 && decisionsData && (
         <div className="demo-section-block">
-          <div className="section-title-row">
-            <div className="title-with-badge">
-              <MessageSquare size={17} className="text-cyan" />
-              <h3>Related Team Discussions & Decision Alignment</h3>
-            </div>
-            <span className="provenance-tag">Cross-Source Decision Alignment</span>
-          </div>
-
+          <div className="section-title-row"><div className="title-with-badge"><MessageSquare size={18} className="text-cyan" /><h3>From Slack</h3></div><span className="provenance-tag">Sample updates for PR #{selectedChange?.number}</span></div>
           <div className="decisions-grid">
-            {decisionsData.decisions.map((decision: DecisionItem) => {
-              const isTrap = decision.isTrap
-              const review = reviewStates[decision.id] || 'Needs review'
-
+            {relatedDecisions.map((decision) => {
+              const isQuestion = decision.decisionStatus !== 'confirmed'
+              const slackSource = decisionsData.evidence.find((record) => record.id === decision.decisionId)
+              const changeSource = decisionsData.evidence.find((record) => record.id === decision.prId)
               return (
-                <div
-                  key={decision.id}
-                  className={`decision-card card-3d ${isTrap ? 'trap-card' : 'truth-card'}`}
-                  onMouseMove={handleCardTilt}
-                  onMouseLeave={handleCardReset}
-                >
-                  <div className="decision-card-topline">
-                    <span className="decision-channel-badge">
-                      <MessageSquare size={13} /> {decision.channel}
-                    </span>
-                    <span
-                      className={`decision-status-badge ${
-                        isTrap ? 'status-trap' : 'status-truth'
-                      }`}
-                    >
-                      {isTrap ? (
-                        <>
-                          <AlertTriangle size={12} /> {decision.statusLabel}
-                        </>
-                      ) : (
-                        <>
-                          <Check size={12} /> {decision.statusLabel}
-                        </>
-                      )}
-                    </span>
+                <article key={decision.id} className={`decision-card ${isQuestion ? 'trap-card' : 'truth-card'}`}>
+                  <div className="decision-card-topline"><span className="decision-channel-badge"><MessageSquare size={14} /> {decision.channel}</span><span className={`decision-status-badge ${isQuestion ? 'status-trap' : 'status-truth'}`}>{isQuestion ? 'Open question' : 'Team decision'}</span></div>
+                  <div className="decision-plain-summary">
+                    <h4>{isQuestion ? 'Email verification was only suggested' : 'The team agreed to change profile names'}</h4>
+                    <p>{isQuestion ? 'This idea is still being discussed and is not part of the selected change.' : 'The Slack decision matches this proposed change. The code change is still open.'}</p>
                   </div>
-
-                  {isTrap && (
-                    <div className="trap-warning-banner">
-                      <ShieldAlert size={15} className="text-amber flex-shrink-0" />
-                      <span>
-                        <strong>Unverified Proposal:</strong> This thread discusses an unconfirmed proposal regarding <code>email_verified</code>. It is NOT an approved team decision or merged pull request.
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="decision-message-bubble">
-                    <div className="bubble-author">
-                      <span>{decision.author}</span>
-                      <span className="bubble-time">Slack Discussion</span>
-                    </div>
-                    <p className="bubble-text">"{decision.slackMessage}"</p>
+                  <div className="decision-source-links">
+                    {slackSource && <button type="button" onClick={() => setSelectedEvidence(slackSource)}><MessageSquare size={14} /> View Slack source <ChevronRight size={13} /></button>}
+                    {changeSource && <button type="button" onClick={() => setSelectedEvidence(changeSource)}><GitPullRequest size={14} /> View proposed change <ChevronRight size={13} /></button>}
                   </div>
-
-                  <div className="match-rationale-box">
-                    <strong>Link Rationale:</strong> {decision.matchRationale}
-                  </div>
-
-                  <div className={`grounding-status-box ${isTrap ? 'box-trap' : 'box-truth'}`}>
-                    <div className="grounding-header">
-                      {isTrap ? (
-                        <>
-                          <ShieldAlert size={14} className="text-amber flex-shrink-0" />
-                          <strong>Verification Status: Unverified Proposal</strong>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck size={14} className="text-emerald flex-shrink-0" />
-                          <strong>Verification Status: Confirmed Team Decision</strong>
-                        </>
-                      )}
-                    </div>
-                    <p className="grounding-detail">
-                      {isTrap
-                        ? 'Proposal has not been approved by the team and has 0 matching lines in PR #18 diff.'
-                        : 'Confirmed decision explicitly matches line-level deletion of user_name in PR #18.'}
-                    </p>
-                  </div>
-
-                  {/* F5 User Controls */}
-                  <div className="f5-review-container">
-                    <div className="f5-label-row">
-                      <span>Your Decision:</span>
-                      <span className={`review-status-label review-status-${review.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {review}
-                      </span>
-                    </div>
-
-                    <div className="f5-btn-group" role="group" aria-label="Review controls">
-                      {['Confirm', 'Not Relevant', 'Remind Later'].map((action) => {
-                        const isActive = review === action
-                        const activeClass = !isActive
-                          ? ''
-                          : action === 'Confirm'
-                          ? 'f5-active-confirm'
-                          : action === 'Not Relevant'
-                          ? 'f5-active-not-relevant'
-                          : 'f5-active-remind-later'
-
-                        return (
-                          <button
-                            key={action}
-                            type="button"
-                            className={`f5-action-btn ${activeClass}`}
-                            onClick={() => setDecisionReview(decision.id, action)}
-                          >
-                            {action}
-                          </button>
-                        )
-                      })}
-                      {review !== 'Needs review' && (
-                        <button
-                          type="button"
-                          className="f5-undo-btn"
-                          onClick={() => setDecisionReview(decision.id, 'Needs review')}
-                        >
-                          Reset
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                </article>
               )
             })}
           </div>
         </div>
       )}
 
-
-      {/* 7. Modal / Slide-out for Inspecting Source Evidence */}
-      {selectedEvidence && (
-        <div className="evidence-dialog-backdrop" onClick={() => setSelectedEvidence(null)}>
-          <div
-            className="evidence-dialog-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="dialog-header">
-              <div className="dialog-title-group">
-                <span className="dialog-source-tag">{selectedEvidence.source || 'source'}</span>
-                <h4>{selectedEvidence.title}</h4>
-              </div>
-              <button
-                type="button"
-                className="dialog-close-btn"
-                onClick={() => setSelectedEvidence(null)}
-                aria-label="Close dialog"
-              >
-                ×
-              </button>
-            </div>
-            <div className="dialog-location">{selectedEvidence.location}</div>
-            <div className="dialog-body-pre">
-              <pre>{selectedEvidence.body}</pre>
-            </div>
-            <div className="dialog-footer">
-              <span className="dialog-footnote">
-                <Info size={14} /> Provenance Verified · Zero persistent external storage
-              </span>
-              <button
-                type="button"
-                className="cyan-btn-secondary"
-                onClick={() => setSelectedEvidence(null)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {selectedEvidence && <EvidenceDialog record={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
     </section>
   )
+}
+
+const taskStatusLabels: Record<AssignedTask['status'], string> = {
+  todo: 'To do',
+  in_progress: 'In progress',
+  done: 'Done',
+}
+
+function DatabaseTasks() {
+  const [tasks, setTasks] = useState<AssignedTask[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadTasks() {
+    setLoading(true)
+    setError(null)
+    try {
+      const nextTasks = await fetchAssignedTasks()
+      setTasks(nextTasks)
+      setSelectedId((current) => nextTasks.some((task) => task.id === current) ? current : nextTasks[0]?.id ?? null)
+    } catch (cause) {
+      setTasks([])
+      setSelectedId(null)
+      setError(cause instanceof Error ? cause.message : 'Tasks could not be loaded.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadTasks() }, [])
+  const selectedTask = tasks.find((task) => task.id === selectedId)
+
+  return (
+    <section className="demo-selector-card database-task-panel" aria-label="Supabase assignments">
+      <div className="database-task-heading">
+        <div><span className="selector-eyebrow"><Ticket size={15} /> SUPABASE TASKS</span><h2 className="selector-title">My tasks</h2></div>
+        <button type="button" className="cyan-btn-secondary" disabled={loading} onClick={() => { void loadTasks() }}><RefreshCw size={15} /> Refresh</button>
+      </div>
+      {loading ? <p className="database-task-message" role="status">Loading assigned tasks…</p>
+        : error ? <p className="database-task-message" role="alert">{error} The sample demo is available above.</p>
+          : tasks.length === 0 ? <p className="database-task-message">No assigned tasks are in this Supabase workspace yet. No sample rows have been added.</p>
+            : <>
+              <div className="task-card-grid" role="group" aria-label="Supabase tasks">
+                {tasks.map((task) => (
+                  <button key={task.id} type="button" className={`task-choice-card ${selectedId === task.id ? 'task-choice-card--selected' : ''}`} aria-pressed={selectedId === task.id} onClick={() => setSelectedId(task.id)}>
+                    <span className="task-choice-top"><span>{taskStatusLabels[task.status]}</span><span>{selectedId === task.id ? 'Selected' : 'Select'}</span></span>
+                    <strong>{task.title}</strong>
+                  </button>
+                ))}
+              </div>
+              {selectedTask && <div className="database-task-detail"><strong>{selectedTask.title}</strong><p>{selectedTask.dependencies.length > 0 ? `${selectedTask.dependencies.length} mapped API ${selectedTask.dependencies.length === 1 ? 'endpoint' : 'endpoints'}` : 'No API mapping recorded yet.'}</p><details><summary>Technical details</summary><p>Component: {selectedTask.component}</p>{selectedTask.dependencies.map((dependency) => <p key={dependency.endpoint}>{dependency.endpoint}{dependency.usedFields.length > 0 ? ` · Uses ${dependency.usedFields.join(', ')}` : ''}</p>)}</details></div>}
+              <p className="database-task-message">These assignments come from Supabase. Live PR and Slack analysis for them is not connected yet.</p>
+            </>}
+    </section>
+  )
+}
+
+export function TaskAnalysisDemo() {
+  const [source, setSource] = useState<'database' | 'sample'>('database')
+  return <>
+    <div className="task-source-switch" role="group" aria-label="Task data source">
+      <button type="button" aria-pressed={source === 'database'} onClick={() => setSource('database')}>Supabase tasks</button>
+      <button type="button" aria-pressed={source === 'sample'} onClick={() => setSource('sample')}>Sample demo</button>
+    </div>
+    {source === 'database' ? <DatabaseTasks /> : <SampleTaskAnalysis />}
+  </>
 }

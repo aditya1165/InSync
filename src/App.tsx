@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { TaskAnalysisDemo } from './TaskAnalysisDemo.tsx'
 import {
   ArrowRight,
@@ -16,9 +16,11 @@ import {
   ListFilter,
   MessageCircle,
   MessageSquareText,
+  Moon,
   RefreshCw,
   SearchCheck,
   Sparkles,
+  Sun,
   Ticket,
   type LucideIcon,
 } from 'lucide-react'
@@ -32,7 +34,6 @@ import {
   type InsightCategory,
 } from './lib/catchup.ts'
 import { createDemoProvider, demoAnalyzer } from './lib/demo.ts'
-import { createLiveCatchUp, getBackendHealth, type BackendHealth } from './lib/live.ts'
 import { getTimeWindow, previousCalendarWeek, type RangeChoice } from './lib/time.ts'
 
 const locale = navigator.language || 'en-US'
@@ -216,8 +217,8 @@ function Summary({ result, onOpenSource }: { result: CatchUpResult; onOpenSource
     <section className="summary-section" aria-live="polite">
       <div className="section-heading summary-heading">
         <div>
-          <div className="eyebrow">YOUR CATCH-UP</div>
-          <h2>What happened while you were away</h2>
+          <div className="eyebrow">TEAM ACTIVITY</div>
+          <h2>Updates across the example team</h2>
           <p>{formatResultRange(result)} · Generated {formatDateTime(result.generatedAt)}</p>
         </div>
         <span className="mode-pill"><Sparkles size={14} /> {result.mode === 'demo' ? 'Sample analysis' : 'Live activity'}</span>
@@ -327,21 +328,24 @@ function ActivityFeed({
 }
 
 export default function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try { return localStorage.getItem('insync-theme') === 'dark' ? 'dark' : 'light' }
+    catch { return 'light' }
+  })
   const [selectedRange, setSelectedRange] = useState<RangeChoice>('last24Hours')
-  const [completedAt, setCompletedAt] = useState<Record<'demo' | 'live', Date | null>>({ demo: null, live: null })
+  const [activeView, setActiveView] = useState<'my-work' | 'team-activity'>('my-work')
+  const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [result, setResult] = useState<CatchUpResult | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [health, setHealth] = useState<BackendHealth | null>(null)
-  const [dataMode, setDataMode] = useState<'demo' | 'live'>('demo')
 
-  useEffect(() => {
-    getBackendHealth().then(setHealth).catch(() => setHealth(null))
-  }, [])
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('insync-theme', theme) } catch { /* Storage may be unavailable. */ }
+  }, [theme])
 
-  const liveAvailable = health?.sources.github === 'configured' || health?.sources.slack === 'configured'
-  const lastCompletedAt = completedAt[dataMode]
+  const lastCompletedAt = completedAt
   const now = new Date()
 
   async function runCatchUp() {
@@ -352,13 +356,9 @@ export default function App() {
     setIsLoading(true)
     setError(null)
     try {
-      const nextResult = dataMode === 'live'
-        ? await createLiveCatchUp(window)
-        : await createCatchUp(window, createDemoProvider(startedAt, locale), demoAnalyzer)
+      const nextResult = await createCatchUp(window, createDemoProvider(startedAt, locale), demoAnalyzer)
       setResult(nextResult)
-      if (nextResult.mode === 'demo' || Object.values(nextResult.sources || {}).every((source) => source.state !== 'error')) {
-        setCompletedAt((previous) => ({ ...previous, [dataMode]: nextResult.generatedAt }))
-      }
+      setCompletedAt(nextResult.generatedAt)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The catch-up could not be prepared. Please try again.')
     } finally {
@@ -371,34 +371,41 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><span /></span><span>InSync</span></div>
         <div className="sidebar-label">WORKSPACE</div>
-        <div className="sidebar-active"><Sparkles size={18} /><span>Catch-up</span><ChevronRight size={16} /></div>
+        <nav className="sidebar-nav" aria-label="Workspace views">
+          <button type="button" className={`sidebar-nav-button ${activeView === 'my-work' ? 'sidebar-active' : ''}`} aria-current={activeView === 'my-work' ? 'page' : undefined} onClick={() => setActiveView('my-work')}><Ticket size={18} /><span>My work</span><ChevronRight size={16} /></button>
+          <button type="button" className={`sidebar-nav-button ${activeView === 'team-activity' ? 'sidebar-active' : ''}`} aria-current={activeView === 'team-activity' ? 'page' : undefined} onClick={() => setActiveView('team-activity')}><MessageSquareText size={18} /><span>Team activity</span><ChevronRight size={16} /></button>
+        </nav>
         <div className="sidebar-spacer" />
-        <div className="workspace-card">
-          <span className="workspace-avatar">S</span>
-          <div><strong>Sameer</strong><span>Research Scientist · Demo</span></div>
+        <div className="sidebar-theme">
+          <span className="sidebar-theme-label">APPEARANCE</span>
+          <div className="sidebar-theme-options" role="group" aria-label="Color theme">
+            <button type="button" aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} /> Light</button>
+            <button type="button" aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} /> Dark</button>
+          </div>
         </div>
-        <p className="sidebar-footnote">{liveAvailable ? 'Live sources are available for this local project.' : 'Configure Slack or GitHub in .env to enable live activity.'}</p>
+        <p className="sidebar-footnote">Live team activity needs sign-in and ticket-board access.</p>
       </aside>
 
       <main className="main-content">
-        <header className="topbar"><span>Workspace <ChevronRight size={14} /> Catch-up</span><span className="topbar-mode"><span /> {dataMode === 'demo' ? 'Sample mode' : 'Live mode'}</span></header>
+        <header className="topbar"><span>Workspace <ChevronRight size={14} /> {activeView === 'my-work' ? 'My work' : 'Team activity'}</span><span className="topbar-mode"><span /> Sample mode</span></header>
         <div className="content-wrap">
-          <section className="hero">
-            <span className="hero-kicker"><Sparkles size={15} /> PROJECT AWARENESS</span>
-            <h1>Catch up on what<br /><em>matters to your team.</em></h1>
-            <p>Review Slack and GitHub activity together, see what may need your attention, and inspect the evidence behind each highlight.</p>
-          </section>
-
-          {dataMode === 'demo' && <TaskAnalysisDemo />}
-
-          <details className="activity-browser" open={dataMode === 'live' ? true : undefined}>
-            <summary>Browse all Slack and GitHub activity</summary>
+          {activeView === 'my-work' ? <>
+            <section className="hero">
+              <span className="hero-kicker"><Sparkles size={15} /> YOUR WORK</span>
+              <h1>See what may affect<br /><em>your work.</em></h1>
+              <p>Pick an assigned task to see related code changes and team updates.</p>
+            </section>
+            <TaskAnalysisDemo />
+          </> : <>
+            <section className="hero">
+              <span className="hero-kicker"><MessageSquareText size={15} /> TEAM ACTIVITY</span>
+              <h1>See what your<br /><em>team is working on.</em></h1>
+              <p>Browse the example team's Slack and GitHub activity, including updates outside your assigned tasks.</p>
+            </section>
+            <div className="team-scope-note" role="note"><Info size={17} /><span>This is sample activity. Live activity will require sign-in and access to the same ticket board as your assigned tasks.</span></div>
+          <div className="activity-browser">
             <section className="catchup-controls" aria-labelledby="range-heading">
-              <div className="controls-heading"><div><h2 id="range-heading">Choose your time range</h2><p>Your catch-up begins when you click the button below.</p></div><Clock3 size={21} /></div>
-              <div className="filter-row" role="group" aria-label="Activity data mode">
-                <button type="button" className={`filter-button ${dataMode === 'demo' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('demo'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.demo ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'demo'}>Sample data</button>
-                <button type="button" className={`filter-button ${dataMode === 'live' ? 'filter-button--active' : ''}`} onClick={() => { setDataMode('live'); setResult(null); setSelectedRange((choice) => choice === 'sinceLastCatchUp' && !completedAt.live ? 'last24Hours' : choice) }} aria-pressed={dataMode === 'live'} disabled={!liveAvailable}>Live sources</button>
-              </div>
+              <div className="controls-heading"><div><h2 id="range-heading">Choose a time range</h2><p>Sample updates appear after you click Load activity.</p></div><Clock3 size={21} /></div>
               <div className="range-grid" role="radiogroup" aria-label="Catch-up time range">
                 {rangeOptions.map(({ id, title, description, icon: Icon }) => {
                   const disabled = id === 'sinceLastCatchUp' && lastCompletedAt === null
@@ -421,14 +428,14 @@ export default function App() {
                 })}
               </div>
               <div className="controls-footer">
-                <div><Info size={16} /><span>{dataMode === 'demo' ? 'Using labeled Slack and GitHub sample records' : 'Using configured live source records'}</span></div>
+                <div><Info size={16} /><span>Using labeled Slack and GitHub sample records</span></div>
                 <button className="primary-button" type="button" onClick={runCatchUp} disabled={isLoading}>
                   {isLoading ? <RefreshCw className="spin" size={17} /> : <Sparkles size={17} />}
-                  {isLoading ? 'Preparing catch-up…' : 'Catch me up'}
+                  {isLoading ? 'Loading activity…' : 'Load activity'}
                   {!isLoading && <ArrowRight size={17} />}
                 </button>
               </div>
-              {lastCompletedAt && <p className="session-note"><Check size={14} /> Last successful {dataMode === 'live' ? 'live ' : ''}catch-up: {formatDateTime(lastCompletedAt)}. This timestamp is held only for the current app session.</p>}
+              {lastCompletedAt && <p className="session-note"><Check size={14} /> Last loaded: {formatDateTime(lastCompletedAt)}. This timestamp is held only for the current app session.</p>}
               {error && <p className="error-message" role="alert"><CircleAlert size={16} /> {error}</p>}
             </section>
 
@@ -440,15 +447,16 @@ export default function App() {
             ) : (
               <section className="welcome-panel">
                 <span className="welcome-icon"><SearchCheck size={25} /></span>
-                <div><h2>A clearer view of project activity</h2><p>Choose a range and run your first catch-up. You will see possible decisions, open questions, code changes, suggested next actions, and the complete source list.</p></div>
+                <div><h2>Team updates will appear here</h2><p>Choose a time range and load the sample activity.</p></div>
                 <ArrowRight size={23} />
               </section>
             )}
-          </details>
-          <footer className="page-footer">{dataMode === 'demo' ? 'InSync demo · Sample records are illustrative.' : 'InSync live mode · Read-only Slack and GitHub activity.'}</footer>
+          </div>
+          </>}
+          <footer className="page-footer">InSync demo · Sample records are illustrative.</footer>
         </div>
       </main>
-      {selectedActivity && <SourceDetail activity={selectedActivity} mode={result?.mode || 'demo'} onClose={() => setSelectedActivity(null)} />}
+      {selectedActivity && <SourceDetail activity={selectedActivity} mode="demo" onClose={() => setSelectedActivity(null)} />}
     </div>
   )
 }
