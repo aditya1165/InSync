@@ -3,17 +3,20 @@ import { DemoApi } from './api.ts'
 import type { Manifest } from './manifest.ts'
 import { Simulator } from './simulator.ts'
 import { backendPath, baselineBackend, cursorBackend, frontendPath, productList } from './scenario.ts'
+import type { AssignedTask } from '../db/tasks.ts'
 export interface PaginationEvidence {
   mode: 'live' | 'sample'; pr: PaginationCatchUp['pr']; before: string; after: string; frontend: string
-  patch?: string; complete: boolean; humanDiscussion?: boolean; code: DemoSource[]; messages: DemoSource[]
+  patch?: string; complete: boolean; humanDiscussion?: boolean; code: DemoSource[]; messages: DemoSource[]; task?: AssignedTask
 }
 export function analyzePagination(input: PaginationEvidence, start: Date, end: Date): PaginationCatchUp {
   const { before, after, frontend, patch = '', messages, pr } = input
   const removed = /\btotalPages\s*:/.test(before) && !/\btotalPages\s*:/.test(after)
   const cursor = /\bnextCursor\s*:/.test(after)
   const consumer = /response\.totalPages\b/.test(frontend)
-  const grounded = input.complete && removed && cursor && consumer && /^-.*\btotalPages\b/m.test(patch)
-  const times = [pr.timestamp, ...(input.humanDiscussion ? messages.map((m) => m.timestamp) : [])]
+  const dependency = input.task?.dependencies.find((d) => d.endpoint === 'GET /products')
+  const mapped = !input.task || (input.task.component === 'ProductList' && !!dependency?.usedFields.includes('totalPages'))
+  const grounded = mapped && input.complete && removed && cursor && consumer && /^-.*\btotalPages\b/m.test(patch)
+  const times = [pr.createdAt || pr.timestamp, pr.updatedAt || pr.timestamp, ...(input.humanDiscussion ? messages.map((m) => m.timestamp) : [])]
   const inWindow = times.some((time) => new Date(time) >= start && new Date(time) < end)
   const proposal = messages.find((m) => /propos/i.test(m.body) && /cursor[- ]based pagination/i.test(m.body))
   const agreement = messages.find((m) => /\+1|\bi agree\b/i.test(m.body))
@@ -30,12 +33,17 @@ export function analyzePagination(input: PaginationEvidence, start: Date, end: D
   const linked = messages.find((m) => id !== 'Unassigned' && m.body.includes(id) && !!pr.url && m.body.includes(pr.url))
   const status = superseded ? 'superseded' : confirmed ? 'confirmed' : proposal ? 'proposed' : 'unverified'
   return {
-    mode: input.mode, generatedBy: 'evidence_rules', task: { owner: 'Leo', component: 'ProductList', endpoint: 'GET /products' },
+    mode: input.mode, generatedBy: 'evidence_rules',
+    task: input.task ? { id: input.task.id, owner: 'Assigned user', component: input.task.component, endpoint: dependency?.endpoint || 'Dependency not verified', usedFields: dependency?.usedFields || [] }
+      : { owner: 'Sample Leo', component: 'ProductList', endpoint: 'GET /products', usedFields: ['totalPages'] },
+    window: { start: start.toISOString(), end: end.toISOString() },
+    impactEvidenceIds: [...(input.task ? [`task:${input.task.id}`] : []), ...input.code.map((c) => c.id), pr.id],
     inWindow, impact: grounded ? 'breaking' : 'uncertain',
     explanation: grounded
       ? `PR #${pr.number} removes totalPages from GET /products and returns nextCursor. ProductList still reads response.totalPages to build page buttons. Using this PR's backend with the current frontend would fail the contract test. PR status: ${pr.lifecycle}; deployment is unverified.`
-      : 'Impact uncertain: complete backend removal, cursor response, patch, and ProductList consumer evidence are required.',
-    actions: grounded ? ['Inspect the backend diff and ProductList source below.', 'Migrate ProductList to nextCursor and next/previous navigation, or agree on a compatibility response.', 'Run the contract test on both branches before merging; coordinate release timing with Maya.'] : ['Inspect the source records and restore missing contract evidence before accepting an impact claim.'],
+      : !mapped ? `Relevance uncertain: ${input.task?.component} needs a verified GET /products mapping that consumes totalPages. This scenario only verifies the ProductList consumer; no impact on this task is established.`
+        : 'Impact uncertain: complete backend removal, cursor response, patch, and ProductList consumer evidence are required.',
+    actions: grounded ? ['Inspect the backend diff and ProductList source below.', 'Migrate ProductList to nextCursor and next/previous navigation, or agree on a compatibility response.', 'Run the contract test on both branches before merging; coordinate release timing with the backend owner.'] : ['Inspect the source records and restore missing contract evidence before accepting an impact claim.'],
     uncertainty: ['The PR lifecycle does not establish deployment.', 'The Slack-to-PR relationship requires human review.', ...(!input.complete ? ['PR file evidence is incomplete.'] : [])],
     pr, code: input.code, messages,
     decision: { id, status, evidenceIds: [proposal, agreement, confirmation, superseded].filter((x): x is DemoSource => !!x).map((m) => m.id) },
@@ -45,12 +53,13 @@ export function analyzePagination(input: PaginationEvidence, start: Date, end: D
       evidenceIds: [pr.id, ...(linked ? [linked.id] : []), ...(confirmation ? [confirmation.id] : [])] },
   }
 }
-export async function loadPagination(api: DemoApi, manifest: Manifest, start: Date, end: Date, humanThreadTs?: string) {
+export async function loadPagination(api: DemoApi, manifest: Manifest, start: Date, end: Date, humanThreadTs?: string, task?: AssignedTask) {
   if (manifest.cleaned) throw new Error('Demo run has been cleaned; create and verify a new run.')
   const simulator = new Simulator(api, manifest, async () => {})
   const { pr, messages } = humanThreadTs
-    ? { pr: await simulator.verifyGitHub(), messages: (await api.thread(humanThreadTs)).filter((m) => !m.bot_id && !m.app_id && typeof m.user === 'string') }
+    ? { pr: await simulator.verifyGitHub(), messages: (await api.thread(humanThreadTs)).filter((m) => !m.bot_id && !m.app_id && m.subtype !== 'bot_message' && typeof m.user === 'string' && m.user) }
     : await simulator.verify()
+  if (humanThreadTs && !messages.some((m) => m.ts === humanThreadTs)) throw new Error('Pinned human parent is missing or deleted. Select another inspectable discussion.')
   const baseSha = pr.base.sha; const headSha = pr.head.sha
   const read = async (path: string, sha: string) => {
     const record = await api.gh(`/contents/${path}?ref=${sha}`)
@@ -66,20 +75,21 @@ export async function loadPagination(api: DemoApi, manifest: Manifest, start: Da
     if (batch.length < 100) { complete = true; break }
   }
   const change = files.find((f) => f.filename === backendPath)
-  const timestamp = [pr.created_at, pr.updated_at].find((value) => new Date(value) >= start && new Date(value) < end) || pr.updated_at || pr.created_at
-  const code = [
+  const timestamp = pr.updated_at || pr.created_at
+  const code: DemoSource[] = [
     { id: `github:${baseSha}:${backendPath}`, title: 'Backend before the PR', body: before, url: `https://github.com/${api.config.repository}/blob/${baseSha}/${backendPath}`, timestamp },
     { id: `github:${headSha}:${backendPath}`, title: 'Backend proposed response', body: after, url: `https://github.com/${api.config.repository}/blob/${headSha}/${backendPath}`, timestamp },
-    { id: `github:${headSha}:${frontendPath}`, title: 'ProductList consumer (Leo)', body: frontend, url: `https://github.com/${api.config.repository}/blob/${headSha}/${frontendPath}`, timestamp },
+    { id: `github:${headSha}:${frontendPath}`, title: 'ProductList consumer', body: frontend, url: `https://github.com/${api.config.repository}/blob/${headSha}/${frontendPath}`, timestamp },
     { id: `github:pr:${pr.id}:patch`, title: 'Actual GitHub PR patch', body: change?.patch || 'Patch unavailable', url: `${pr.html_url}/files`, timestamp },
   ]
+  if (task) code.unshift({ id: `task:${task.id}`, title: 'Supabase task dependency mapping', body: JSON.stringify(task, null, 2), timestamp: new Date().toISOString(), url: undefined })
   const sources: DemoSource[] = []
   for (const message of messages) {
     const permalink = await api.slack('chat.getPermalink', { channel: api.config.channel, message_ts: message.ts })
     sources.push({ id: `slack:${api.config.channel}:${message.ts}`, title: `Slack message · ${message.user || message.bot_id || 'unknown'}`, body: message.text || '', actorId: message.user || message.bot_id,
       timestamp: new Date(Number(message.ts) * 1000).toISOString(), url: permalink.permalink })
   }
-  return analyzePagination({ mode: 'live', pr: { id: `github:pr:${pr.id}`, number: pr.number, title: pr.title, body: pr.body || '', timestamp,
+  return analyzePagination({ mode: 'live', task, pr: { id: `github:pr:${pr.id}`, number: pr.number, title: pr.title, body: pr.body || '', timestamp, createdAt: pr.created_at, updatedAt: pr.updated_at, actorId: pr.user?.login,
     url: pr.html_url, lifecycle: pr.merged_at ? 'merged' : pr.state }, before, after, frontend, patch: change?.patch,
     complete: complete && !!change?.patch, humanDiscussion: !!humanThreadTs, code, messages: sources.sort((a,b) => a.timestamp.localeCompare(b.timestamp)) }, start, end)
 }

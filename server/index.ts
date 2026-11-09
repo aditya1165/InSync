@@ -6,6 +6,7 @@ import { createGitHubProvider } from './providers/github.ts'
 import { createSlackProvider } from './providers/slack.ts'
 import { createDatabasePool } from './db/pool.ts'
 import { listAssignedTasks } from './db/tasks.ts'
+import { listUserSources } from './db/catchup.ts'
 
 const config = loadConfig()
 const db = process.env.DATABASE_URL ? createDatabasePool(process.env.DATABASE_URL) : null
@@ -18,7 +19,7 @@ const localDemoIdentity = config.host === '127.0.0.1' && process.env.NODE_ENV !=
 const slackEvents = new SlackEventsRuntime()
 const app = createApp({
   slackEvents,
-  taskStore: db ? { listAssignedTasks: (userId, workspaceId) => listAssignedTasks(db, userId, workspaceId) } : undefined,
+  taskStore: db ? { listAssignedTasks: (userId, workspaceId) => listAssignedTasks(db, userId, workspaceId), listUserSources: (userId, workspaceId) => listUserSources(db, userId, workspaceId) } : undefined,
   // One-user local demo only. Production must resolve identity from verified Auth.
   resolveTaskIdentity: localDemoIdentity ? async () => localDemoIdentity : undefined,
   github: config.github.repository

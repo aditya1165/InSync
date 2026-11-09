@@ -3,20 +3,29 @@ export interface DemoSource { id: string; title: string; body: string; url?: str
 export interface PaginationCatchUp {
   mode: 'live' | 'sample'
   generatedBy: 'evidence_rules'
-  slackSource?: 'seeded' | 'human_events'
+  retrievedAt?: string
+  slackSource?: 'seeded' | 'human_events' | 'human_replay'
   slackThreadTs?: string
   slackThreadRevision?: number
-  task: { owner: string; component: string; endpoint: string }
+  task: { id?: string; owner: string; component: string; endpoint: string; usedFields?: string[] }
+  window?: { start: string; end: string }
+  impactEvidenceIds?: string[]
   inWindow: boolean
   impact: 'breaking' | 'uncertain'
   explanation: string
   actions: string[]
   uncertainty: string[]
-  pr: DemoSource & { number: number; lifecycle: string }
+  pr: DemoSource & { number: number; lifecycle: string; createdAt?: string; updatedAt?: string }
   code: DemoSource[]
   messages: DemoSource[]
   decision: { id: string; status: 'proposed' | 'confirmed' | 'superseded' | 'unverified'; evidenceIds: string[] }
   link: { status: 'possible'; rationale: string; evidenceIds: string[] }
+}
+export interface ReplaySettings {
+  threadTs: string
+  decisionId: string
+  prNumber: number
+  window: { start: string; end: string }
 }
 // Review applies to the relationship, never the source decision or PR lifecycle.
 export function reviewLink(review: LinkReview, messages: DemoSource[]): LinkReview {

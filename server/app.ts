@@ -7,6 +7,7 @@ import { registerAnalysisDemo } from './analysis/demo-routes.ts'
 import { registerDemoRoutes } from './routes/demo.ts'
 import type { AssignedTask } from './db/tasks.ts'
 import type { SlackEventsRuntime } from './slack-events/runtime.ts'
+import type { SourceScope } from './db/catchup.ts'
 
 export interface AppProviders {
   slackEvents?: SlackEventsRuntime
@@ -14,7 +15,7 @@ export interface AppProviders {
   slack?: ActivityProvider
   /** Resolve only after authenticating the user and checking their ticket-board source grants. */
   resolveActivityScope?: (request: FastifyRequest) => Promise<ActivityScope | null>
-  taskStore?: { listAssignedTasks(userId: string, workspaceId: string): Promise<AssignedTask[]> }
+  taskStore?: { listAssignedTasks(userId: string, workspaceId: string): Promise<AssignedTask[]>; listUserSources?(userId: string, workspaceId: string): Promise<SourceScope[]> }
   resolveTaskIdentity?: (request: FastifyRequest) => Promise<{ userId: string; workspaceId: string } | null>
 }
 
@@ -30,7 +31,7 @@ function publicError(error: unknown): string {
 
 export function createApp(providers: AppProviders) {
   const app = Fastify({ logger: false })
-  registerRealDemo(app, process.env, fetch, providers.slackEvents)
+  registerRealDemo(app, process.env, fetch, providers.slackEvents, providers)
   registerAnalysisDemo(app)
   registerDemoRoutes(app)
 

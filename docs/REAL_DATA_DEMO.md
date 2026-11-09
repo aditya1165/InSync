@@ -1,8 +1,9 @@
 # Real GitHub + Slack pagination demo
 
+> Current primary flow: [My work / Team activity setup and replay](WORKSPACE_DEMO.md). The separate Pagination demo menu has been removed. Use the saved human DEC-15 scenario for repeat presentations; new posts and simulator writes are unnecessary. The older steps below describe the optional seeded/new-event modes. Live catch-up now also requires an assigned task and approved source grants.
 ## Current implementation and boundaries
 
-This extends the existing React/TypeScript/Vite + Fastify application. The default **Pagination demo** sidebar view contains **Back on Track · Leo’s ProductList** (`src/PaginationDemo.tsx`). Upstream **My work**, **Team activity**, and Light/Dark themes remain available. Its **Catch me up** button calls `GET /api/real-demo/catch-up?mode=live&start=...&end=...`. **Why did this change?** opens the retrieved Slack discussion, DEC-14, PR, code evidence and human link controls.
+This extends the existing React/TypeScript/Vite + Fastify application. **My work** now owns task selection and the pagination interaction (`src/PaginationDemo.tsx`); **Team activity** shares its evidence and review. Live requests include `taskId` and require member ownership plus effective source grants. The primary saved human discussion is DEC-15; the optional original seeded bot discussion remains DEC-14.
 
 Live mode reads remote records on every catch-up; it never quietly substitutes fixtures. The explicit **Scripted pagination sample (offline)** choice supports both interactions without credentials. The **Team activity** view retains the upstream time-range browser and uses pagination samples. Its general live activity endpoint still requires authenticated ticket-board/source grants. The **My work** view retains Supabase tasks and the separate upstream sample walkthrough. The old ProfileSettings endpoints/components remain as legacy compatibility code and regression coverage; the primary demo does not call them.
 

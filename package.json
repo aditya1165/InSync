@@ -15,6 +15,8 @@
     "demo:seed": "tsx server/real-demo/cli.ts seed",
     "demo:validate": "tsx server/real-demo/cli.ts validate",
     "demo:verify": "tsx server/real-demo/cli.ts verify",
+    "demo:pin": "tsx server/real-demo/cli.ts pin",
+    "demo:setup-task": "tsx server/real-demo/setup-cli.ts",
     "demo:cleanup": "tsx server/real-demo/cli.ts cleanup"
   },
   "dependencies": {

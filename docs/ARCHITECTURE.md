@@ -1,6 +1,6 @@
 # InSync architecture
 
-This describes the current implementation after integrating upstream commit `99ad059` with the real pagination demo. The simulator creates staged records on GitHub and Slack; the application retrieves and analyzes those real records. The explicit offline mode uses labeled samples.
+The application shares a task-selected evidence snapshot and relationship review across My work and Team activity. It re-fetches the existing GitHub PR and pinned human DEC-15 thread for every walkthrough. An optional simulator originally created the isolated PR and a separate staged bot discussion; ordinary replay performs read-only requests. Explicit offline mode uses labeled samples.
 
 ## System diagram
 
@@ -9,14 +9,14 @@ flowchart TB
     USER["Developer / Leo"]
 
     subgraph UI["Frontend — React + TypeScript · Vite :5173"]
-        APP["Application shell<br/>Pagination demo · My work · Team activity"]
+        APP["Application shell<br/>My work · Team activity"]
         REVIEW["Human review<br/>Confirm · Reject · Correct · Reopen"]
         LOCAL["Local sample activity"]
     end
 
     subgraph SERVER["Backend — Node.js + Fastify :3001"]
         API["API routes"]
-        PAG["Pagination catch-up service<br/>Absence window + source verification"]
+        PAG["Pagination catch-up service<br/>Task + source grants + window + source verification"]
         RULES["Evidence-based analysis<br/>API contract mismatch + decision provenance"]
         TASKS["Assigned-task service<br/>User/workspace membership checks"]
         SAMPLES["Legacy sample task routes"]
@@ -25,12 +25,13 @@ flowchart TB
     subgraph EXTERNAL["External services"]
         GH["GitHub API<br/>PRs · commits · diffs · source files"]
         SL["Slack API<br/>Proposal · agreement · confirmation"]
-        DB[("Supabase / PostgreSQL<br/>Tasks · API mappings · memberships")]
+        DB[("Supabase / PostgreSQL<br/>Tasks · API mappings · memberships · source grants")]
     end
 
     subgraph SETUP["Demo setup — separate from normal app use"]
         CLI["Simulator CLI<br/>Dry-run → approved apply → verify"]
         MANIFEST[("Private local manifest<br/>Object IDs · URLs · timestamps")]
+        REPLAY[("Private replay profile<br/>Human parent ID · PR · real date window")]
         ENV["Server-side .env<br/>Credentials + target allowlists"]
     end
 
@@ -46,6 +47,8 @@ flowchart TB
     PAG <-->|"Read real evidence"| GH
     PAG <-->|"Read real thread"| SL
     PAG -->|"Resolve recorded objects"| MANIFEST
+    PAG -->|"Validate owned task and effective grants"| TASKS
+    PAG -->|"Pinned human parent after restart"| REPLAY
     PAG --> RULES
     RULES -->|"Impact, actions, sources and relationship"| APP
 
@@ -64,23 +67,26 @@ Both interactions use the evidence returned by the catch-up request. “Why did 
 
 ```mermaid
 flowchart LR
-    A["Catch me up"] --> B["Retrieve PR, code and Slack thread"]
+    TASK["Select assigned task + mapping"] --> A["Catch me up"]
+    A --> B["Authorize task/sources; retrieve PR, code and Slack thread"]
     B --> C["Detect totalPages removal"]
-    C --> D["Identify ProductList as affected"]
+    C --> D["Check selected component/API/field mapping"]
     D --> E["Impact explanation + action plan"]
     E --> F["Why did this change?"]
-    F --> G["Slack proposal → agreement → DEC-14 → PR"]
+    F --> G["Human proposal → agreement → DEC-15 → PR"]
     G --> H["Human confirms, rejects or corrects the link"]
+    H --> FEED["Same evidence + review in Team activity"]
+    FEED --> RESET["Reset result/review; keep task + replay settings"]
 ```
 
 ## Implementation boundaries
 
 - Pagination analysis uses inspectable evidence rules, source links and uncertainty. It does not call OpenAI. The optional model engine in the legacy sample routes is separate.
-- Source decision status and human link review are independent. DEC-14 can be confirmed while its relationship to a PR remains a possible match awaiting review.
-- Supabase supplies assigned tasks and mappings in My work. Those assignments are not yet connected to the pagination analyzer, which uses the predefined Leo/ProductList mapping.
+- Source decision status and human link review are independent. DEC-15 can be confirmed while its relationship to a PR remains a possible match awaiting review.
+- Supabase supplies member-owned assignments and inspectable mappings in My work. Both source grants are required before live readback. ProductList → GET /products → totalPages gates the supported consumer impact; unrelated or missing mappings yield uncertainty. Mapping editing and discovery remain unimplemented.
 - Human review applies to the loaded result in browser state. It does not edit Slack, GitHub, source decision status or project tasks. Remind Later records a local deferral rather than scheduling a notification.
-- Team activity currently displays samples. The separate human-thread mode uses an optional Socket Mode listener for approved-channel metadata discovery. Its general live endpoint requires authenticated ticket-board/source grants; the current server startup does not provide that resolver.
-- The live pagination endpoint is restricted to non-production, loopback-bound demo use. Credentials stay on the server. Private simulator journals stay in the ignored `.demo/` directory.
+- Team activity displays the selected scenario’s retrieved evidence with real date/provider filtering and shared review. Separate illustrative samples remain under a disclosure. The optional new-human-thread mode uses Socket Mode for metadata discovery. General `/api/activity` still requires authenticated ticket-board/source grants; startup does not provide that production resolver.
+- The live pagination endpoint is restricted to non-production, loopback-bound demo use. Credentials stay on the server. Private simulator journals and identifier/date-only replay profiles stay in ignored `.demo/`. A local env identity supplies one demo user; production authentication is not implemented.
 - The simulator creates genuine remote objects with visibly staged content and simulated weekday labels. Platform IDs and timestamps remain real. It does not merge the PR or deploy the changed API.
 
 ## Code map
@@ -88,13 +94,13 @@ flowchart LR
 | Component | Files |
 | --- | --- |
 | App shell, navigation and themes | [src/App.tsx](../src/App.tsx), [src/palette.css](../src/palette.css) |
-| Pagination interaction and human review | [src/PaginationDemo.tsx](../src/PaginationDemo.tsx), [src/lib/real-demo.ts](../src/lib/real-demo.ts) |
+| Shared walkthrough and human review | [src/PaginationDemo.tsx](../src/PaginationDemo.tsx), [src/lib/real-demo.ts](../src/lib/real-demo.ts), [src/useWalkthrough.ts](../src/useWalkthrough.ts), [src/ScenarioActivity.tsx](../src/ScenarioActivity.tsx) |
 | Frontend API proxy | [vite.config.ts](../vite.config.ts) |
 | Backend startup and routes | [server/index.ts](../server/index.ts), [server/app.ts](../server/app.ts), [server/real-demo/routes.ts](../server/real-demo/routes.ts) |
 | Real source retrieval and analysis | [server/real-demo/api.ts](../server/real-demo/api.ts), [server/real-demo/analysis.ts](../server/real-demo/analysis.ts) |
 | Simulator and recovery journal | [server/real-demo/cli.ts](../server/real-demo/cli.ts), [server/real-demo/simulator.ts](../server/real-demo/simulator.ts), [server/real-demo/manifest.ts](../server/real-demo/manifest.ts) |
 | Supabase assigned tasks | [server/db/tasks.ts](../server/db/tasks.ts), [src/lib/tasks.ts](../src/lib/tasks.ts) |
-| Setup and live walkthrough | [REAL_DATA_DEMO.md](REAL_DATA_DEMO.md) |
+| Setup and live walkthrough | [WORKSPACE_DEMO.md](WORKSPACE_DEMO.md), [server/real-demo/task-setup.ts](../server/real-demo/task-setup.ts), [server/real-demo/replay.ts](../server/real-demo/replay.ts) |
 
 ## Optional live human-thread collection
 
@@ -108,6 +114,6 @@ flowchart LR
     LOADER --> RULES["Evidence rules + independent human review"]
 ```
 
-Source text is fetched on demand with the existing bot token. No human message bodies are persisted. The index clears on restart, does not backfill historical events, and is limited to the local demo. Setup and a step-by-step simulation are in [SLACK_EVENTS_DEMO.md](SLACK_EVENTS_DEMO.md).
+Source text is fetched on demand with the existing bot token. No human message bodies are persisted. The discovery index clears on restart, does not backfill arbitrary historical events, and is limited to the local demo. Saved DEC-15 replay reads its pinned parent directly after restart without another event. Setup and a step-by-step simulation are in [SLACK_EVENTS_DEMO.md](SLACK_EVENTS_DEMO.md).
 
 Live verification: the Socket Mode path received three human messages in one thread on 2026-11-08. The running catch-up route resolved DEC-15 and ProductList impact while preserving the separate unverified relationship review.

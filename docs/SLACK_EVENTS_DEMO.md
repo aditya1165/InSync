@@ -1,5 +1,6 @@
 # Human Slack discussions through the Events API
 
+> Current primary flow: [My work / Team activity setup and replay](WORKSPACE_DEMO.md). The separate Pagination demo menu has been removed. Use the saved human DEC-15 scenario for repeat presentations; new posts and simulator writes are unnecessary. The older steps below describe the optional seeded/new-event modes. Live catch-up now also requires an assigned task and approved source grants.
 This adds real-time **metadata discovery** of human-written Slack threads to the existing pagination demo. Slack sends events over an authenticated outbound Socket Mode connection. No public webhook URL, tunnel or signing secret is needed for this transport. The backend does not post replies or create discussions in this mode.
 
 Full message text is fetched fresh from Slack when you click **Catch me up**. The thread list refreshes every five seconds; analysis remains user-initiated. The seeded bot demo and offline sample remain available as separate data-source options.
@@ -38,7 +39,7 @@ npm run dev
 
 The new dependency is Slack's official `@slack/socket-mode` client. The usual frontend and Fastify ports remain 5173 and 3001. Changing `.env` requires a server restart.
 
-Open http://localhost:5173. In **Pagination demo → Data source**, choose **Human Slack discussions (live events)**. Wait for **Slack listener: connected** before posting the simulation. An alternative metadata-only check is:
+Open http://localhost:5173. In **My work → Scenario evidence**, choose **Human Slack discussions (live events)**. Wait for **Slack listener: connected** before posting the simulation. An alternative metadata-only check is:
 
 ```bash
 curl http://127.0.0.1:3001/api/slack-events/status
@@ -97,7 +98,7 @@ Bot-generated posts are excluded from human analysis, even if a human replies in
 - **Delete a human reply:** A deletion event advances the thread revision. Fresh analysis uses Slack's current thread contents, so deleted text cannot remain source evidence.
 - **Supersede:** Add a later human reply such as `[Human demo] DEC-15 superseded: retain offset pagination while we coordinate the frontend migration.` Refresh analysis; source status becomes superseded.
 - **Wrong PR reference:** Use an unrelated PR URL in a separate simulation. The analyzer must not claim an exact link to the configured pagination PR. Inspect the low-evidence rationale and reject or correct the relationship.
-- **Disconnect:** Stop the backend. Restarting reconnects, but this demo's metadata index is cleared. Post a new human message/reply after reconnection to rediscover the thread. The UI does not claim complete history coverage.
+- **Disconnect:** The new-event index clears on restart. Use the saved human DEC-15 replay to fetch the pinned parent without another event. Only discovery of a new unpinned thread requires a new event after reconnection. Complete history coverage is not claimed.
 
 The backend acknowledges event envelopes promptly before any source API requests or analysis. It deduplicates Slack retry event IDs and uses the official client's reconnect behavior. Edits and deletions update revisions; the UI warns on stale results or listener outages. Raw SDK logs are suppressed to avoid emitting payloads, credentials or connection URLs.
 
@@ -105,7 +106,7 @@ The backend acknowledges event envelopes promptly before any source API requests
 
 - Collection is opt-in, restricted to non-production with `HOST=127.0.0.1`, and scoped to the allowlisted workspace/channel. It does not bypass the upstream authenticated general team-activity route.
 - Only bounded metadata is retained in memory: up to 100 recent thread records, up to 8 days of observed activity, and bounded deduplication/message-ID maps. Human message bodies are not written to disk or Supabase.
-- Metadata is lost on restart and there is no historical backfill. Events can be missed during outages/rate limiting. This is a local gallery prototype, not a durable production ingestion service.
+- Discovery metadata is lost on restart and there is no general historical backfill. The separately pinned scenario can be fetched by its saved parent ID. Events can be missed during outages/rate limiting. This is a local gallery prototype, not a durable production ingestion service.
 - The backend must remain running while people post. The UI polls metadata every five seconds; it does not automatically run GitHub analysis after every Slack message.
 - This collector does not send Slack messages, change app scopes, modify tasks, merge PRs or push code. Manual Slack simulation posts belong to the humans who create them.
 - Disable collection by setting `SLACK_EVENTS_ENABLED=false` and restarting. Remove your own simulation posts manually if desired; simulator cleanup does not delete human-authored threads.
@@ -114,6 +115,6 @@ The backend acknowledges event envelopes promptly before any source API requests
 
 Run `npm test` and `npm run build`. Automated tests use mocked event envelopes, sockets and HTTP responses to cover acknowledgement, retries, channel/workspace filtering, bot exclusion, bounded metadata, edits/deletions, reconnects, fresh human-thread retrieval, dynamic decision IDs, uncertainty and local-only access.
 
-The existing seeded API flow can still be checked with `npm run demo:verify`. A live human-event delivery check requires the user-configured xapp token, enabled Socket Mode, matching bot event subscriptions, and an actual human Slack post. Do not claim that check succeeded solely because automated tests or a socket connection passed.
+The primary pinned human workspace flow is checked with `npm run demo:verify` after assignment setup; it no longer depends on verification of seeded bot messages. A live human-event delivery check requires the user-configured xapp token, enabled Socket Mode, matching bot event subscriptions, and an actual human Slack post. Do not claim that check succeeded solely because automated tests or a socket connection passed.
 
 Local verification for this increment: 59 automated tests passed and the production build passed. After the user configured the app-level token, collection was enabled and the backend reloaded. On 2026-11-08, live Socket Mode delivery was verified with three human-authored messages in one thread. The running Vite→Fastify catch-up returned HTTP 200, human_events source, source DEC-15 confirmed with three inspectable Slack evidence IDs, breaking ProductList impact from the real PR, and a possible/unverified relationship awaiting human review. Message content, user IDs and the private human thread permalink were not added to the repository. No bot posts or remote code changes were made for this check.

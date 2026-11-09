@@ -16,10 +16,17 @@ import { reviewLink } from '../src/lib/real-demo.ts'
 import { createApp } from './app.ts'
 import { SlackEventsRuntime } from './slack-events/runtime.ts'
 import { SlackThreadCollector } from './slack-events/collector.ts'
+import type { TaskAccess } from './real-demo/access.ts'
+import { pinReplay, readReplay, saveReplay } from './real-demo/replay.ts'
 
 const env = { GITHUB_OWNER: 'demo-owner', GITHUB_REPO: 'demo-repo', GITHUB_TOKEN: 'TEST_GH_SECRET', SLACK_BOT_TOKEN: 'TEST_SLACK_SECRET',
   SLACK_CHANNEL_ID: 'C123', GITHUB_DEMO_ALLOWLIST: 'demo-owner/demo-repo', SLACK_DEMO_ALLOWLIST: 'C123' }
 const config = demoConfig(env)
+const taskId = 'b7d521e0-9324-477a-9b62-075965d06002'
+const task = { id: taskId, title: 'Build ProductList', component: 'ProductList', status: 'in_progress' as const, dependencies: [{ endpoint: 'GET /products', usedFields: ['totalPages'] }] }
+const access: TaskAccess = { resolveTaskIdentity: async () => ({ userId: 'user', workspaceId: 'workspace' }), taskStore: {
+  listAssignedTasks: async () => [task], listUserSources: async () => [{ id: 'gh', provider: 'github', externalId: config.repository, displayName: 'demo' }, { id: 'sl', provider: 'slack', externalId: config.channel, displayName: 'demo' }],
+} }
 // Stateful HTTP fake: exercises the actual adapters, Git object/ref creation,
 // provenance reads, and recovery. All IDs below are test-only, never remote claims.
 function remote() {
@@ -314,8 +321,7 @@ test('bot confirmations cannot be reused as human decision evidence', async () =
   const { r, api, make, disk } = setup(); await make().seed()
   const root = disk().messages.proposal!.ts
   r.messages.push({ ts: String(Number(root) + 10), thread_ts: root, user: 'U1', text: 'I have a question about the current change.' })
-  const data = await loadPagination(api, disk(), new Date(Date.now() - 86400000), new Date(Date.now() + 60000), root)
-  assert.equal(data.messages.length, 1); assert.equal(data.decision.status, 'unverified')
+  await assert.rejects(loadPagination(api, disk(), new Date(Date.now() - 86400000), new Date(Date.now() + 60000), root), /human parent/)
 })
 test('human thread API accepts only indexed approved-channel threads and returns their source revision', async () => {
   const { r, make, disk } = setup(); await make().seed()
@@ -328,9 +334,9 @@ test('human thread API accepts only indexed approved-channel threads and returns
   const runtime = new SlackEventsRuntime()
   runtime.collector = new SlackThreadCollector('C123', 'T1')
   runtime.collector.accept({ type: 'event_callback', event_id: 'EvHuman', team_id: 'T1', event: { type: 'message', channel: 'C123', user: 'U1', ts: stamp, text: 'PRIVATE SOURCE' } })
-  const app = Fastify(); registerRealDemo(app, { ...env, DEMO_MANIFEST_PATH: manifestPath }, r.fetcher, runtime)
+  const app = Fastify(); registerRealDemo(app, { ...env, DEMO_MANIFEST_PATH: manifestPath }, r.fetcher, runtime, access)
   try {
-    const query = new URLSearchParams({ mode: 'live', start: new Date(Date.now() - 86400000).toISOString(), end: new Date(Date.now() + 60000).toISOString(), threadTs: '123.000001' })
+    const query = new URLSearchParams({ taskId, mode: 'live', start: new Date(Date.now() - 86400000).toISOString(), end: new Date(Date.now() + 60000).toISOString(), threadTs: '123.000001' })
     assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).statusCode, 404)
     query.set('threadTs', stamp)
     const response = await app.inject(`/api/real-demo/catch-up?${query}`)
@@ -349,4 +355,92 @@ test('a new human message can fall inside the absence window while the linked PR
     before: baselineFiles[backendPath]!, after: cursorBackend, frontend: baselineFiles[frontendPath]!, patch: '- totalPages: 2', complete: true,
     humanDiscussion: true, code: sample.code, messages: [{ id: 'human:now', title: 'Human', body: 'I propose cursor-based pagination.', timestamp: new Date(end.getTime() - 1000).toISOString() }] }
   assert.equal(analyzePagination(input, start, end).inWindow, true)
+})
+
+test('task-aware catch-up fails closed before any provider read for missing identity, ownership or source grants', async () => {
+  const query = new URLSearchParams({ mode: 'live', taskId, start: '2026-11-01T00:00:00Z', end: '2026-11-09T00:00:00Z' })
+  const cases: [TaskAccess, number][] = [
+    [{}, 401],
+    [{ ...access, taskStore: undefined }, 503],
+    [{ ...access, taskStore: { ...access.taskStore!, listAssignedTasks: async () => [] } }, 404],
+    [{ ...access, taskStore: { ...access.taskStore!, listUserSources: async () => [] } }, 403],
+    [{ ...access, taskStore: { ...access.taskStore!, listUserSources: async () => [{ id: 'other', provider: 'github', externalId: 'other/repo', displayName: 'other' }] } }, 403],
+  ]
+  for (const [scope, expected] of cases) {
+    const app = Fastify(); let reads = 0
+    registerRealDemo(app, env, (async () => { reads++; throw new Error('Unexpected provider read') }) as typeof fetch, undefined, scope)
+    try { assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).statusCode, expected); assert.equal(reads, 0) }
+    finally { await app.close() }
+  }
+  const app = Fastify(); registerRealDemo(app, env, fetch, undefined, access)
+  try {
+    query.delete('taskId'); assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).statusCode, 400)
+    query.set('taskId', 'not-a-uuid'); assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).statusCode, 400)
+  } finally { await app.close() }
+})
+test('database task component, endpoint and consumed fields all gate the ProductList impact claim', async () => {
+  const { make, api, disk } = setup(); await make().seed()
+  const start = new Date(Date.now() - 86400000), end = new Date(Date.now() + 60000)
+  const valid = await loadPagination(api, disk(), start, end, undefined, task)
+  assert.equal(valid.impact, 'breaking'); assert.equal(valid.task.id, taskId)
+  assert.ok(valid.impactEvidenceIds?.includes(`task:${taskId}`))
+  assert.ok(valid.code.some((r) => r.id === `task:${taskId}`))
+  for (const unrelated of [{ ...task, component: 'SearchCatalog' }, { ...task, dependencies: [] }, { ...task, dependencies: [{ endpoint: 'GET /search/products', usedFields: ['totalPages'] }] }, { ...task, dependencies: [{ endpoint: 'GET /products', usedFields: ['items'] }] }]) {
+    const data = await loadPagination(api, disk(), start, end, undefined, unrelated)
+    assert.equal(data.impact, 'uncertain'); assert.match(data.explanation, /Relevance uncertain/)
+    assert.equal(data.task.component, unrelated.component)
+  }
+})
+test('pinned human replay survives a fresh runtime, refetches sources read-only, and handles deleted/edited evidence and API failures', async () => {
+  const { r, api, make, disk } = setup(); await make().seed()
+  const root = ((Date.now() - 20000) / 1000).toFixed(6)
+  const ts = (n: number) => (Number(root) + n).toFixed(6)
+  r.messages.push({ ts: root, user: 'U1', text: 'I propose cursor-based pagination for GET /products.' },
+    { ts: ts(1), thread_ts: root, user: 'U2', text: '+1 to cursor-based pagination.' },
+    { ts: ts(2), thread_ts: root, user: 'U1', text: `Decision DEC-15 confirmed: remove totalPages and return nextCursor. ${disk().pr!.url}` })
+  await mkdir('.demo', { recursive: true })
+  const dir = await mkdtemp('.demo/replay-test-')
+  const c = { ...config, manifestPath: `${dir}/manifest.json` }
+  const writes = r.writes.length
+  try {
+    await saveManifest(c, disk())
+    const profile = await pinReplay(api, disk())
+    await saveReplay(c, profile)
+    assert.equal((await readReplay(c, disk()))?.threadTs, root)
+    assert.ok(!JSON.stringify(profile).includes('I propose'))
+    const app = Fastify()
+    // No collector events, no Socket Mode connection, as after a restart.
+    registerRealDemo(app, { ...env, DEMO_MANIFEST_PATH: c.manifestPath }, r.fetcher, new SlackEventsRuntime(), access)
+    const query = new URLSearchParams({ taskId, replay: 'true', mode: 'live', ...profile.window })
+    try {
+      const settings = await app.inject(`/api/real-demo/replay?taskId=${taskId}`)
+      assert.equal(settings.statusCode, 200); assert.equal(settings.json().threadTs, root)
+      const response = await app.inject(`/api/real-demo/catch-up?${query}`)
+      assert.equal(response.statusCode, 200, response.body)
+      const data = response.json()
+      assert.equal(data.slackSource, 'human_replay'); assert.equal(data.decision.id, 'DEC-15')
+      assert.equal(data.decision.status, 'confirmed'); assert.equal(data.task.id, taskId)
+      assert.equal(data.slackThreadRevision, undefined); assert.equal(data.impact, 'breaking')
+      query.set('start', '2000-01-01T00:00:00Z'); query.set('end', '2000-01-02T00:00:00Z')
+      assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).json().inWindow, false)
+      query.set('start', profile.window.start); query.set('end', profile.window.end)
+      r.messages.at(-1).text = 'Decision DEC-15 is not confirmed.'
+      const edited = (await app.inject(`/api/real-demo/catch-up?${query}`)).json()
+      assert.equal(edited.decision.status, 'proposed')
+      r.messages.splice(r.messages.findIndex((m) => m.ts === root), 1)
+      assert.equal((await app.inject(`/api/real-demo/catch-up?${query}`)).statusCode, 502)
+      assert.equal(r.writes.length, writes)
+    } finally { await app.close() }
+    const failing = Fastify()
+    registerRealDemo(failing, { ...env, DEMO_MANIFEST_PATH: c.manifestPath }, (async () => new Response('{}', { status: 403 })) as typeof fetch, undefined, access)
+    try { const response = await failing.inject(`/api/real-demo/catch-up?${query}`); assert.equal(response.statusCode, 502); assert.ok(!response.body.includes(env.GITHUB_TOKEN)) }
+    finally { await failing.close() }
+    // Tampered or cross-target profile is rejected before readback.
+    await writeFile(`${dir}/manifest.replay.json`, JSON.stringify({ ...profile, channel: 'COTHER' }))
+    await assert.rejects(readReplay(c, disk()), /Replay target/)
+  } finally {
+    await unlink(c.manifestPath).catch(() => {})
+    await unlink(`${dir}/manifest.replay.json`).catch(() => {})
+    await rmdir(dir)
+  }
 })

@@ -1590,3 +1590,11 @@ button { cursor: pointer; }
 .pagination-review:disabled { opacity: .6; }
 
 .pagination-demo .pagination-now { flex-direction: row; align-items: center; padding-bottom: 10px; }
+
+/* The walkthrough shares the established workspace palette in both appearances. */
+.scenario-feed-item { margin: 16px 0; padding: 14px; border: 1px solid var(--palette-16243d); border-radius: 12px; }
+.legacy-samples { margin-top: 28px; }
+.legacy-samples > summary { cursor: pointer; padding: 16px 0; }
+.pagination-demo .database-task-heading { gap: 16px; flex-wrap: wrap; }
+.pagination-demo p, .pagination-source code { overflow-wrap: anywhere; }
+.pagination-review select { max-width: 100%; }

@@ -4,15 +4,19 @@ import { DemoApi } from './api.ts'
 import { confirmation, demoConfig, requireCredentials } from './config.ts'
 import { newManifest, readManifest, saveManifest } from './manifest.ts'
 import { plan, Simulator } from './simulator.ts'
+import { pinReplay, readReplay, saveReplay } from './replay.ts'
+import { loadPagination } from './analysis.ts'
+import { createDatabasePool } from '../db/pool.ts'
+import { verifyTaskSetup } from './task-setup.ts'
 
 async function main() {
   const [command = 'seed', ...args] = process.argv.slice(2)
-  if (!['seed', 'verify', 'validate', 'cleanup'].includes(command)) throw new Error('Use seed, validate, verify, or cleanup.')
+  if (!['seed', 'verify', 'validate', 'cleanup', 'pin'].includes(command)) throw new Error('Use seed, validate, verify, pin, or cleanup.')
   const flags = new Map<string, string>()
   for (let i = 0; i < args.length; i++) {
     const flag = args[i]!
     if (['--apply', '--dry-run'].includes(flag)) flags.set(flag, 'true')
-    else if (['--confirm', '--only'].includes(flag) && args[i + 1]) flags.set(flag, args[++i]!)
+    else if (['--confirm', '--only', '--thread-ts'].includes(flag) && args[i + 1]) flags.set(flag, args[++i]!)
     else throw new Error('Unknown or incomplete CLI argument.')
   }
   if (flags.has('--apply') && flags.has('--dry-run')) throw new Error('Choose --apply or --dry-run.')
@@ -36,7 +40,24 @@ async function main() {
     if (!previous && command !== 'seed') throw new Error('No manifest. Cleanup and verification require the original journal.')
     const simulator = new Simulator(api, previous || newManifest(c), (m) => saveManifest(c, m))
     if (command === 'seed') await simulator.seed()
-    if (command === 'verify') { await simulator.validate(); await simulator.verify() }
+    if (command === 'pin') {
+      const profile = await pinReplay(api, simulator.manifest, flags.get('--thread-ts'))
+      await saveReplay(c, profile)
+      console.log('Saved human DEC-15 identifiers and real event window in the ignored replay profile. No remote writes.')
+    }
+    if (command === 'verify') {
+      const profile = await readReplay(c, simulator.manifest)
+      if (!profile) throw new Error('Pin the human DEC-15 thread with demo:pin first.')
+      if (!process.env.DATABASE_URL) throw new Error('Configure DATABASE_URL and the demo assignment before verification.')
+      const db = createDatabasePool(process.env.DATABASE_URL)
+      try {
+        const task = await verifyTaskSetup(db, c, process.env.INSYNC_DEMO_USER_ID || '', process.env.INSYNC_DEMO_WORKSPACE_ID || '')
+        await api.validateReads(simulator.manifest.teamId)
+        const result = await loadPagination(api, simulator.manifest, new Date(profile.window.start), new Date(profile.window.end), profile.threadTs, task)
+        if (result.pr.number !== profile.prNumber || result.decision.id !== profile.decisionId || result.decision.status !== 'confirmed' || result.impact !== 'breaking' || !result.inWindow) throw new Error('Pinned decision or contract evidence is missing, changed, or outside the saved window.')
+        console.log('Read-only checks passed: member assignment, mapping, source grants, pinned human discussion, PR lifecycle and contract evidence.')
+      } finally { await db.end() }
+    }
     if (command === 'cleanup') {
       const only = flags.get('--only') || 'all'
       if (!['all', 'github', 'slack'].includes(only)) throw new Error('--only must be all, github, or slack.')
@@ -45,4 +66,4 @@ async function main() {
     console.log(`${command} completed. Journal: ${c.manifestPath}${simulator.manifest.pr ? `; PR: ${simulator.manifest.pr.url}` : ''}`)
   } finally { await handle.close(); await unlink(lock) }
 }
-main().catch((e) => { console.error(e instanceof Error ? e.message : 'Demo command failed.'); process.exitCode = 1 })
+main().catch((e) => { console.error(e instanceof Error && !('severity' in e) ? e.message : 'Demo database request failed. Check local database settings.'); process.exitCode = 1 })

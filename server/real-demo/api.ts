@@ -88,4 +88,11 @@ export class DemoApi {
     if (channel.id !== this.config.channel || !channel.is_member || channel.is_archived) throw new Error('Bot must belong to the configured, active demo channel.')
     return { repo, auth, channel }
   }
+  /** Check read access only; classroom replay requires no write permission. */
+  async validateReads(teamId?: string) {
+    const [repo, auth, info] = await Promise.all([this.gh(''), this.slack('auth.test'), this.slack('conversations.info', { channel: this.config.channel })])
+    if (repo.full_name?.toLowerCase() !== this.config.repository.toLowerCase()) throw new Error('GitHub read target mismatch.')
+    if (!auth.bot_id || !auth.team_id || (teamId && auth.team_id !== teamId)) throw new Error('Slack reader belongs to another workspace.')
+    if (info.channel?.id !== this.config.channel || !info.channel.is_member || info.channel.is_archived) throw new Error('Slack reader needs membership in the active approved channel.')
+  }
 }

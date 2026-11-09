@@ -1,125 +1,64 @@
-import { useEffect, useState } from 'react'
-import { reviewLink, type DemoSource, type LinkReview, type PaginationCatchUp, type SlackEventStatus } from './lib/real-demo.ts'
-function localDate(date: Date) { return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) }
-function Source({ record }: { record: DemoSource }) {
+import type { DemoSource } from './lib/real-demo.ts'
+import { localDate, type Walkthrough } from './useWalkthrough.ts'
+export function Source({ record }: { record: DemoSource }) {
   return <details className="pagination-source"><summary>{record.title}</summary>
-    <p><code>{record.id}</code> · <time>{new Date(record.timestamp).toLocaleString()}</time></p>
+    <p><code>{record.id}</code> · <time dateTime={record.timestamp}>{new Date(record.timestamp).toLocaleString()}</time>{record.actorId && <> · Actor: {record.actorId}</>}</p>
     <pre>{record.body}</pre>{record.url && <a href={record.url} target="_blank" rel="noreferrer">Open original source ↗</a>}
   </details>
 }
-export function PaginationDemo() {
-  const [mode, setMode] = useState<'live' | 'human' | 'sample'>('live')
-  const [start, setStart] = useState(() => localDate(new Date(Date.now() - 7 * 86400000)))
-  const [end, setEnd] = useState(() => localDate(new Date()))
-  const [throughNow, setThroughNow] = useState(true)
-  const [result, setResult] = useState<PaginationCatchUp | null>(null)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [why, setWhy] = useState(false)
-  const [review, setReview] = useState<LinkReview>({ state: 'pending' })
-  const [correctedId, setCorrectedId] = useState('')
-  const [threadTs, setThreadTs] = useState('')
-  const [events, setEvents] = useState<SlackEventStatus | null>(null)
-  const [eventsError, setEventsError] = useState('')
-  useEffect(() => {
-    let active = true; let fetching = false
-    async function refresh() {
-      if (fetching) return
-      fetching = true
-      try {
-        const response = await fetch('/api/slack-events/status')
-        const data = await response.json()
-        if (!response.ok) throw new Error('Event status is unavailable outside the local demo.')
-        if (!active) return
-        setEvents(data); setEventsError('')
-        setThreadTs((current) => data.threads.some((t: { threadTs: string }) => t.threadTs === current) ? current : data.threads[0]?.threadTs || '')
-      } catch { if (active) setEventsError('Could not refresh Slack listener status. Check the local backend.') }
-      finally { fetching = false }
-    }
-    void refresh()
-    const timer = window.setInterval(() => { void refresh() }, 5000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [])
-  const loadedThread = events?.threads.find((t) => t.threadTs === result?.slackThreadTs)
-  const stale = !!result?.slackThreadTs && (!!eventsError || events?.state !== 'connected' || !loadedThread || loadedThread.revision !== result.slackThreadRevision)
-  useEffect(() => { if (stale) setReview({ state: 'pending' }) }, [stale])
-  async function catchUp() {
-    setLoading(true); setError(''); setResult(null); setWhy(false); setReview({ state: 'pending' })
-    try {
-      const endTime = throughNow ? new Date() : new Date(end)
-      if (!start || !end || new Date(start) >= endTime) throw new Error('Choose an absence start before its end.')
-      if (mode === 'human' && !threadTs) throw new Error('Start the listener, then post a new human discussion in the approved Slack channel.')
-      const params = new URLSearchParams({ mode: mode === 'human' ? 'live' : mode, start: new Date(start).toISOString(), end: endTime.toISOString() })
-      if (mode === 'human') params.set('threadTs', threadTs)
-      const response = await fetch(`/api/real-demo/catch-up?${params}`)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not load source evidence.')
-      if (throughNow) setEnd(localDate(endTime))
-      setResult(data); setCorrectedId(data.messages[0]?.id || '')
-    } catch (e) { setError(e instanceof Error ? e.message : 'Catch-up unavailable.') }
-    finally { setLoading(false) }
-  }
-  function applyReview(value: LinkReview) {
-    if (result && !stale) setReview(reviewLink(value, result.messages))
-  }
-  return <section className="pagination-demo" aria-labelledby="pagination-title">
-    <div className="controls-heading"><div><h2 id="pagination-title">Back on Track · Leo’s ProductList</h2>
-      <p>Simulated Monday: Leo returns after a week away. Follow the pagination change from discussion to PR.</p></div></div>
-    <p className="analysis-notice">Staged story; weekdays are simulated. Live mode displays actual platform timestamps. Analysis uses inspectable contract rules, not a model.</p>
-    <div className="pagination-controls">
-      <label>Data source<select value={mode} onChange={(e) => { setMode(e.target.value as 'live' | 'human' | 'sample'); setResult(null); setError('') }}>
-        <option value="live">Seeded GitHub + Slack records</option><option value="human">Human Slack discussions (live events)</option><option value="sample">Scripted pagination sample (offline)</option>
-      </select></label>
-      {mode === 'human' && <label>Collected human discussion<select value={threadTs} onChange={(e) => { setThreadTs(e.target.value); setResult(null) }}>
-        {!events?.threads.length && <option value="">Waiting for a new human message…</option>}
-        {events?.threads.map((t) => <option key={t.threadTs} value={t.threadTs}>Thread {new Date(Number(t.threadTs) * 1000).toLocaleString()} · {t.eventCount} events</option>)}
-      </select></label>}
-      <label>Absent since<input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-      <label>Catch up through<input type="datetime-local" value={end} disabled={throughNow} onChange={(e) => setEnd(e.target.value)} /></label>
-      <label className="pagination-now"><input type="checkbox" checked={throughNow} onChange={(e) => setThroughNow(e.target.checked)} />Through current time</label>
-      <button className="primary-button" onClick={catchUp} disabled={loading}>{loading ? 'Loading source evidence…' : 'Catch me up'}</button>
+export function Review({ walkthrough: w }: { walkthrough: Walkthrough }) {
+  const { result, review } = w
+  if (!result) return null
+  return <>
+    <p>Source decision status: <strong>{result.decision.status}</strong>. Your relationship review: <strong>{review.state}</strong>.</p>
+    <p>{review.state === 'confirmed' ? 'You confirmed this Slack-to-PR relationship.' : review.state === 'rejected' ? 'You rejected this relationship; it is not verified.' : review.state === 'corrected' ? `Replacement source: ${review.correctedMessageId}` : review.state === 'deferred' ? 'Remind Later: deferred for this session; no notification is scheduled.' : 'Possible match — not verified'}</p>
+    <fieldset disabled={w.stale || !result.inWindow} className="pagination-review"><legend>Review Slack-to-PR relationship</legend><div className="pagination-controls" role="group" aria-label="Review Slack-to-PR relationship">
+      <button onClick={() => w.applyReview({ state: 'confirmed' })}>Confirm link</button>
+      <button onClick={() => w.applyReview({ state: 'rejected' })}>Not Relevant / Reject</button>
+      <button onClick={() => w.applyReview({ state: 'deferred' })}>Remind Later</button>
+      <button onClick={() => w.applyReview({ state: 'pending' })}>Undo / Reopen</button>
     </div>
-    {mode === 'human' && <div className="analysis-notice" role="status">
-      <p><strong>Slack listener: {events?.state || 'checking'}</strong> · {events?.threads.length || 0} human threads collected.</p>
-      <p>{eventsError || events?.detail}</p>
-      <p>Post as yourself in the approved channel after the listener connects. Bot posts are excluded. The list refreshes every 5 seconds; Catch me up fetches the thread and the existing pagination PR.</p>
-      {events?.connectedAt && <p>Connected: {new Date(events.connectedAt).toLocaleString()} · Channel: {events.channelId}</p>}
-      <p>{events?.retention}</p>
-    </div>}
-    {error && <p role="alert" className="error-message">{error} The offline sample is available in the data source selector.</p>}
+    <label>Correct the linked source<select value={w.correctedId} onChange={(e) => w.setCorrectedId(e.target.value)}>{result.messages.map((r) => <option key={r.id} value={r.id}>{r.title} · {r.id}</option>)}</select></label>
+    <button disabled={!w.correctedId} onClick={() => w.applyReview({ state: 'corrected', correctedMessageId: w.correctedId })}>Use selected source</button></fieldset>
+    <p className="session-note">Review is shared across both views for this session. It does not change the source decision, PR or task.</p>
+  </>
+}
+export function PaginationDemo({ walkthrough: w, onTeamActivity }: { walkthrough: Walkthrough; onTeamActivity: () => void }) {
+  const { result } = w
+  return <section className="pagination-demo" aria-labelledby="pagination-title">
+    <div className="database-task-heading"><div><h2 id="pagination-title">Catch up on {w.mode === 'sample' ? 'sample ProductList' : w.selectedTask?.component || 'your task'}</h2><p>Inspect the change, then trace its discussion and review the suggested connection.</p></div><button type="button" onClick={w.reset}>Reset walkthrough</button></div>
+    <p className="analysis-notice">Analysis uses evidence-based contract rules. Real mode fetches current GitHub and Slack records; the example scenario is staged. PR status does not establish deployment.</p>
+    <div className="pagination-controls">
+      <label>Scenario evidence<select value={w.mode} onChange={(e) => w.chooseMode(e.target.value as Walkthrough['mode'])}>
+        <option value="replay">Saved human DEC-15 discussion + PR</option><option value="human">New human discussion (live events)</option><option value="seeded">Seeded bot discussion + PR</option><option value="sample">Offline pagination sample · simulated</option>
+      </select></label>
+      {w.mode === 'replay' && <label className="pagination-now"><input type="checkbox" checked={w.useSavedWindow} onChange={(e) => w.setUseSavedWindow(e.target.checked)} />Use saved scenario window</label>}
+      {w.mode === 'human' && <label>Collected discussion<select value={w.threadTs} onChange={(e) => { w.reset(); w.setThreadTs(e.target.value) }}><option value="">Choose a human thread</option>{w.events?.threads.map((t) => <option key={t.threadTs} value={t.threadTs}>{new Date(Number(t.threadTs) * 1000).toLocaleString()}</option>)}</select></label>}
+      <label>Absent since<input type="datetime-local" disabled={w.mode === 'replay' && w.useSavedWindow} value={w.mode === 'replay' && w.useSavedWindow && w.replay ? localDate(new Date(w.replay.window.start)) : w.start} onChange={(e) => w.setStart(e.target.value)} /></label>
+      <label>Catch up through<input type="datetime-local" disabled={w.throughNow || (w.mode === 'replay' && w.useSavedWindow)} value={w.mode === 'replay' && w.useSavedWindow && w.replay ? localDate(new Date(w.replay.window.end)) : w.end} onChange={(e) => w.setEnd(e.target.value)} /></label>
+      {!(w.mode === 'replay' && w.useSavedWindow) && <label className="pagination-now"><input type="checkbox" checked={w.throughNow} onChange={(e) => w.setThroughNow(e.target.checked)} />Through current time</label>}
+      <button className="primary-button" onClick={() => { void w.catchUp() }} disabled={w.loading || (w.mode !== 'sample' && !w.selectedTask) || (w.mode === 'replay' && w.useSavedWindow && !w.replay)}>{w.loading ? 'Loading source evidence…' : 'Catch me up'}</button>
+    </div>
+    {w.mode === 'replay' && <p className="session-note">{w.replay ? `Pinned ${w.replay.decisionId} · PR #${w.replay.prNumber}. Each walkthrough fetches these records again. No new post or push is needed.` : w.replayError || 'Select an assigned task to load saved scenario settings.'}</p>}
+    {w.mode === 'human' && <p role="status">Slack listener: {w.events?.state || 'checking'}. {w.events?.detail}</p>}
+    {w.mode === 'sample' && <p className="analysis-notice">Offline sample assignment: ProductList → GET /products → totalPages. All records and relative dates below are simulated; no Supabase assignment or remote source access is implied.</p>}
+    {w.error && <p role="alert" className="error-message">{w.error} Select the labeled offline sample if needed.</p>}
     {result && <div aria-live="polite">
-      {stale && <p role="alert" className="error-message">This loaded discussion may have changed or the listener is offline. Run Catch me up again before reviewing the relationship.</p>}
-      <p className="mode-pill">{result.mode === 'live' ? result.slackSource === 'human_events' ? 'Real human Slack discussion + demo GitHub PR' : 'Real GitHub + Slack records · staged content' : 'Scripted sample · no remote objects'}</p>
-      {!result.inWindow ? <p>No matching PR or selected discussion activity in the absence window. Adjust the dates; the PR timestamp is: {new Date(result.pr.timestamp).toLocaleString()}.</p> : <article className="pagination-impact">
-        <h3>{result.impact === 'breaking' ? 'Potential breaking contract change' : 'Impact uncertain'} · ProductList</h3>
-        <p><strong>{result.pr.title}</strong> · PR #{result.pr.number} · {result.pr.lifecycle}</p>
-        <p>{result.explanation}</p>
+      {w.stale && <p role="alert" className="error-message">An observed Slack event changed this discussion. Catch up again before reviewing.</p>}
+      <p className="mode-pill">{result.mode === 'sample' ? 'Offline sample · simulated records and timestamps' : result.slackSource === 'seeded' ? 'Real records · staged bot discussion' : 'Real human Slack discussion + demo GitHub PR'} · Evidence snapshot</p>
+      {!result.inWindow ? <p>No matching PR or discussion activity in this window. Adjust the dates or use the saved scenario window.</p> : <article className="pagination-impact">
+        <h3>{result.impact === 'breaking' ? 'Potential breaking contract change' : 'Impact uncertain'} · {result.task.component}</h3>
+        <p><strong>{result.pr.title}</strong> · PR #{result.pr.number} · {result.pr.lifecycle}</p><p>{result.explanation}</p>
         <ol>{result.actions.map((action) => <li key={action}>{action}</li>)}</ol>
-        {result.pr.url && <p><a href={result.pr.url} target="_blank" rel="noreferrer">Inspect actual PR ↗</a></p>}
+        <details><summary>Impact evidence IDs</summary><p>{result.impactEvidenceIds?.join(' · ')}</p></details>
+        <Source record={result.pr} />
         <details><summary>Inspect code and API contract evidence</summary>{result.code.map((r) => <Source key={r.id} record={r} />)}</details>
-        <button className="primary-button" aria-expanded={why} onClick={() => setWhy(!why)}>Why did this change?</button>
-        {why && <section className="pagination-provenance" aria-label="Decision-to-PR provenance">
-          <h3>{result.decision.id} → PR #{result.pr.number} → ProductList</h3>
-          <p>Source decision status: <strong>{result.decision.status}</strong>. Link review: <strong>{review.state}</strong>.</p>
-          <p>{review.state === 'confirmed' ? 'You confirmed this Slack-to-PR relationship.' : review.state === 'rejected' ? 'You rejected this relationship; it is not verified.' : review.state === 'corrected' ? 'You selected a replacement Slack source for this relationship.' : 'Possible match — not verified'}</p>
-          <p>{result.link.rationale}</p>
-          <p>Relationship evidence: {result.link.evidenceIds.join(' · ')}</p>
-          {result.messages.map((r) => <Source key={r.id} record={r} />)}
-          <fieldset disabled={stale} className="pagination-review"><legend>Review Slack-to-PR relationship</legend><div className="pagination-controls" role="group" aria-label="Review Slack-to-PR relationship">
-            <button onClick={() => applyReview({ state: 'confirmed' })}>Confirm link</button>
-            <button onClick={() => applyReview({ state: 'rejected' })}>Not Relevant / Reject</button>
-            <button onClick={() => applyReview({ state: 'deferred' })}>Remind Later</button>
-            <button onClick={() => applyReview({ state: 'pending' })}>Undo / Reopen</button>
-          </div>
-          <label>Correct the linked source<select value={correctedId} onChange={(e) => setCorrectedId(e.target.value)}>
-            {result.messages.map((r) => <option key={r.id} value={r.id}>{r.title} · {r.id}</option>)}
-          </select></label>
-          <button disabled={!correctedId} onClick={() => applyReview({ state: 'corrected', correctedMessageId: correctedId })}>Use selected source</button>
-          {review.state === 'corrected' && <p>Corrected relationship source: {review.correctedMessageId}</p>}</fieldset>
-          <p>Review is local to this loaded result. It does not change the Slack decision or PR.</p>
-        </section>}
+        <button className="primary-button" aria-expanded={w.why} onClick={w.toggleWhy}>Why did this change?</button>
+        {w.why && <section className="pagination-provenance" aria-label="Decision-to-PR provenance"><h3>{result.decision.id} → PR #{result.pr.number}</h3><p>{result.link.rationale}</p><p>Relationship evidence: {result.link.evidenceIds.join(' · ')}</p>{result.messages.map((r) => <Source key={r.id} record={r} />)}<Review walkthrough={w} /></section>}
         <ul>{result.uncertainty.map((item) => <li key={item}>{item}</li>)}</ul>
       </article>}
+      <button type="button" className="cyan-btn-secondary" onClick={onTeamActivity}>View scenario evidence in Team activity →</button>
+      <p className="session-note">Fetched at {new Date(result.retrievedAt || '').toLocaleTimeString()}. Evidence is refreshed on Catch me up, not continuously.</p>
     </div>}
   </section>
 }

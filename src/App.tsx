@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { TaskAnalysisDemo } from './TaskAnalysisDemo.tsx'
-import { PaginationDemo } from './PaginationDemo.tsx'
+import { ScenarioActivity } from './ScenarioActivity.tsx'
+import { useWalkthrough } from './useWalkthrough.ts'
 import {
   ArrowRight,
   CalendarDays,
@@ -334,7 +335,8 @@ export default function App() {
     catch { return 'light' }
   })
   const [selectedRange, setSelectedRange] = useState<RangeChoice>('last24Hours')
-  const [activeView, setActiveView] = useState<'pagination-demo' | 'my-work' | 'team-activity'>('pagination-demo')
+  const [activeView, setActiveView] = useState<'my-work' | 'team-activity'>('my-work')
+  const walkthrough = useWalkthrough()
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [result, setResult] = useState<CatchUpResult | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
@@ -373,7 +375,6 @@ export default function App() {
         <div className="brand"><span className="brand-mark"><span /></span><span>InSync</span></div>
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="sidebar-nav" aria-label="Workspace views">
-          <button type="button" className={`sidebar-nav-button ${activeView === 'pagination-demo' ? 'sidebar-active' : ''}`} aria-current={activeView === 'pagination-demo' ? 'page' : undefined} onClick={() => setActiveView('pagination-demo')}><Sparkles size={18} /><span>Pagination demo</span><ChevronRight size={16} /></button>
           <button type="button" className={`sidebar-nav-button ${activeView === 'my-work' ? 'sidebar-active' : ''}`} aria-current={activeView === 'my-work' ? 'page' : undefined} onClick={() => setActiveView('my-work')}><Ticket size={18} /><span>My work</span><ChevronRight size={16} /></button>
           <button type="button" className={`sidebar-nav-button ${activeView === 'team-activity' ? 'sidebar-active' : ''}`} aria-current={activeView === 'team-activity' ? 'page' : undefined} onClick={() => setActiveView('team-activity')}><MessageSquareText size={18} /><span>Team activity</span><ChevronRight size={16} /></button>
         </nav>
@@ -389,29 +390,24 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        <header className="topbar"><span>Workspace <ChevronRight size={14} /> {activeView === 'pagination-demo' ? 'Pagination demo' : activeView === 'my-work' ? 'My work' : 'Team activity'}</span><span className="topbar-mode"><span /> {activeView === 'pagination-demo' ? 'Staged scenario' : activeView === 'my-work' ? 'Task workspace' : 'Sample activity'}</span></header>
+        <header className="topbar"><span>Workspace <ChevronRight size={14} /> {activeView === 'my-work' ? 'My work' : 'Team activity'}</span><span className="topbar-mode"><span /> {activeView === 'my-work' ? 'Task workspace' : 'Scenario evidence'}</span></header>
         <div className="content-wrap">
-          {activeView === 'pagination-demo' ? <>
-            <section className="hero">
-              <span className="hero-kicker"><Sparkles size={15} /> BACK ON TRACK</span>
-              <h1>Catch up on what<br /><em>affects ProductList.</em></h1>
-              <p>Trace the pagination API change from Slack discussion to its pull request and frontend impact.</p>
-            </section>
-            <PaginationDemo />
-          </> : activeView === 'my-work' ? <>
+          {activeView === 'my-work' ? <>
             <section className="hero">
               <span className="hero-kicker"><Sparkles size={15} /> YOUR WORK</span>
               <h1>See what may affect<br /><em>your work.</em></h1>
               <p>Pick an assigned task to see related code changes and team updates.</p>
             </section>
-            <TaskAnalysisDemo />
+            <TaskAnalysisDemo walkthrough={walkthrough} onTeamActivity={() => setActiveView('team-activity')} />
           </> : <>
             <section className="hero">
               <span className="hero-kicker"><MessageSquareText size={15} /> TEAM ACTIVITY</span>
               <h1>See what your<br /><em>team is working on.</em></h1>
-              <p>Browse the example team's Slack and GitHub activity, including updates outside your assigned tasks.</p>
+              <p>Inspect the selected scenario’s GitHub and Slack evidence and your relationship review.</p>
             </section>
-            <div className="team-scope-note" role="note"><Info size={17} /><span>This is sample activity. Live activity will require sign-in and access to the same ticket board as your assigned tasks.</span></div>
+            <ScenarioActivity walkthrough={walkthrough} onTask={() => setActiveView('my-work')} />
+            <details className="legacy-samples"><summary>Browse separate illustrative team samples</summary>
+            <div className="team-scope-note" role="note"><Info size={17} /><span>Separate sample activity below is unrelated to the selected scenario’s retrieved evidence.</span></div>
           <div className="activity-browser">
             <section className="catchup-controls" aria-labelledby="range-heading">
               <div className="controls-heading"><div><h2 id="range-heading">Choose a time range</h2><p>Sample updates appear after you click Load activity.</p></div><Clock3 size={21} /></div>
@@ -461,6 +457,7 @@ export default function App() {
               </section>
             )}
           </div>
+          </details>
           </>}
           <footer className="page-footer">InSync · Sources and generation modes are labeled in each view.</footer>
         </div>
